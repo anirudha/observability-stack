@@ -65,8 +65,16 @@ services:
     container_name: data-prepper
     pull_policy: always
     platform: linux/amd64
+    command: >
+      /bin/bash -c "
+      cp /tmp/pipelines.template.yaml /tmp/pipelines.yaml &&
+      chmod +w /tmp/pipelines.yaml &&
+      sed -i 's|OPENSEARCH_USER|${OPENSEARCH_USER}|g' /tmp/pipelines.yaml &&
+      sed -i 's|OPENSEARCH_PASSWORD|${OPENSEARCH_PASSWORD}|g' /tmp/pipelines.yaml &&
+      mv /tmp/pipelines.yaml /usr/share/data-prepper/pipelines/pipelines.yaml &&
+      exec /usr/share/data-prepper/bin/data-prepper"
     volumes:
-      - ./docker-compose/data-prepper/pipelines.yaml:/usr/share/data-prepper/pipelines/pipelines.yaml
+      - ./docker-compose/data-prepper/pipelines.template.yaml:/tmp/pipelines.template.yaml
       - ./docker-compose/data-prepper/data-prepper-config.yaml:/usr/share/data-prepper/config/data-prepper-config.yaml
     ports:
       # OTLP gRPC receiver from OpenTelemetry Collector
