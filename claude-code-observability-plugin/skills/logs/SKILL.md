@@ -10,13 +10,13 @@ allowed-tools:
 
 ## Overview
 
-This skill provides PPL (Piped Processing Language) query templates for searching and analyzing log data stored in OpenSearch. Logs are stored in the `otel-v1-apm-log-*` index pattern. All queries use the OpenSearch PPL API at `/_plugins/_ppl` with HTTPS and basic authentication.
+This skill provides PPL (Piped Processing Language) query templates for searching and analyzing log data stored in OpenSearch. Logs are stored in the `logs-otel-v1-*` index pattern. All queries use the OpenSearch PPL API at `/_plugins/_ppl` with HTTPS and basic authentication.
 
 Credentials are read from the `.env` file (default: `admin` / `My_password_123!@#`). All curl commands use `-k` to skip TLS certificate verification for local development.
 
 ## Log Index Key Fields
 
-Key fields available in the `otel-v1-apm-log-*` index:
+Key fields available in the `logs-otel-v1-*` index:
 
 | Field | Type | Description |
 |---|---|---|
@@ -24,9 +24,11 @@ Key fields available in the `otel-v1-apm-log-*` index:
 | `severityNumber` | integer | Numeric severity (1–24, higher = more severe; ERROR=17, WARN=13, INFO=9, DEBUG=5) |
 | `traceId` | keyword | Correlated trace identifier (links log to a distributed trace) |
 | `spanId` | keyword | Correlated span identifier (links log to a specific span within a trace) |
-| `serviceName` | keyword | Service that produced the log entry |
+| `resource.attributes.service.name` | keyword | Service that produced the log entry (use backtick-quoted `` `resource.attributes.service.name` `` in PPL queries) |
 | `body` | text | Log message body content |
 | `@timestamp` | date | Log entry timestamp |
+
+> **Note:** Unlike the trace span index (`otel-v1-apm-span-*`) which has a top-level `serviceName` field, the log index stores the service name at `resource.attributes.service.name`. Always use backtick quoting in PPL: `` `resource.attributes.service.name` ``.
 
 ## Severity Filtering
 
@@ -38,7 +40,7 @@ Query all error-level logs:
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where severityText = '\''ERROR'\'' | fields traceId, spanId, serviceName, body, `@timestamp` | sort - `@timestamp` | head 20"}'
+  -d '{"query": "source=logs-otel-v1-* | where severityText = '\''ERROR'\'' | fields traceId, spanId, `resource.attributes.service.name`, body, `@timestamp` | sort - `@timestamp` | head 20"}'
 ```
 
 ### WARN Logs
@@ -47,7 +49,7 @@ curl -sk -u admin:'My_password_123!@#' \
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where severityText = '\''WARN'\'' | fields traceId, spanId, serviceName, body, `@timestamp` | sort - `@timestamp` | head 20"}'
+  -d '{"query": "source=logs-otel-v1-* | where severityText = '\''WARN'\'' | fields traceId, spanId, `resource.attributes.service.name`, body, `@timestamp` | sort - `@timestamp` | head 20"}'
 ```
 
 ### INFO Logs
@@ -56,7 +58,7 @@ curl -sk -u admin:'My_password_123!@#' \
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where severityText = '\''INFO'\'' | fields traceId, spanId, serviceName, body, `@timestamp` | sort - `@timestamp` | head 20"}'
+  -d '{"query": "source=logs-otel-v1-* | where severityText = '\''INFO'\'' | fields traceId, spanId, `resource.attributes.service.name`, body, `@timestamp` | sort - `@timestamp` | head 20"}'
 ```
 
 ### Filter by Severity Number
@@ -67,7 +69,7 @@ Use `severityNumber` for numeric comparisons. For example, find all logs at WARN
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where severityNumber >= 13 | fields severityText, severityNumber, serviceName, body, `@timestamp` | sort - `@timestamp` | head 20"}'
+  -d '{"query": "source=logs-otel-v1-* | where severityNumber >= 13 | fields severityText, severityNumber, `resource.attributes.service.name`, body, `@timestamp` | sort - `@timestamp` | head 20"}'
 ```
 
 ## Trace Correlation by traceId
@@ -78,7 +80,7 @@ Find all logs associated with a specific trace:
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where traceId = '\''<TRACE_ID>'\'' | fields traceId, spanId, severityText, body, serviceName, `@timestamp` | sort `@timestamp`"}'
+  -d '{"query": "source=logs-otel-v1-* | where traceId = '\''<TRACE_ID>'\'' | fields traceId, spanId, severityText, body, `resource.attributes.service.name`, `@timestamp` | sort `@timestamp`"}'
 ```
 
 Find error logs for a specific trace:
@@ -87,7 +89,7 @@ Find error logs for a specific trace:
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where traceId = '\''<TRACE_ID>'\'' AND severityText = '\''ERROR'\'' | fields spanId, severityText, body, serviceName, `@timestamp` | sort `@timestamp`"}'
+  -d '{"query": "source=logs-otel-v1-* | where traceId = '\''<TRACE_ID>'\'' AND severityText = '\''ERROR'\'' | fields spanId, severityText, body, `resource.attributes.service.name`, `@timestamp` | sort `@timestamp`"}'
 ```
 
 ## Error Patterns
@@ -100,7 +102,7 @@ Identify error patterns by aggregating log counts grouped by severity level and 
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | stats count() by severityText, serviceName"}'
+  -d '{"query": "source=logs-otel-v1-* | stats count() by severityText, `resource.attributes.service.name`"}'
 ```
 
 ### Error Count by Service Only
@@ -109,7 +111,7 @@ curl -sk -u admin:'My_password_123!@#' \
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where severityText = '\''ERROR'\'' | stats count() as error_count by serviceName | sort - error_count"}'
+  -d '{"query": "source=logs-otel-v1-* | where severityText = '\''ERROR'\'' | stats count() as error_count by `resource.attributes.service.name` | sort - error_count"}'
 ```
 
 ## Log Volume Over Time
@@ -122,7 +124,7 @@ Analyze log volume over time using `stats count() by span(@timestamp, 1h)`:
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | stats count() as log_count by span(`@timestamp`, 1h)"}'
+  -d '{"query": "source=logs-otel-v1-* | stats count() as log_count by span(`@timestamp`, 1h)"}'
 ```
 
 ### Configurable Interval
@@ -135,7 +137,7 @@ Change the interval to suit your analysis. Common intervals: `5m`, `15m`, `1h`, 
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | stats count() as log_count by span(`@timestamp`, 15m)"}'
+  -d '{"query": "source=logs-otel-v1-* | stats count() as log_count by span(`@timestamp`, 15m)"}'
 ```
 
 ### Error Volume Over Time
@@ -146,7 +148,7 @@ Track error log volume specifically:
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where severityText = '\''ERROR'\'' | stats count() as error_count by span(`@timestamp`, 1h), serviceName"}'
+  -d '{"query": "source=logs-otel-v1-* | where severityText = '\''ERROR'\'' | stats count() as error_count by span(`@timestamp`, 1h), `resource.attributes.service.name`"}'
 ```
 
 ## Body Content Search
@@ -159,7 +161,7 @@ Search log body content for a specific string using `where` with `like`:
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where body like '\''%timeout%'\'' | fields traceId, spanId, severityText, body, serviceName, `@timestamp` | sort - `@timestamp` | head 20"}'
+  -d '{"query": "source=logs-otel-v1-* | where body like '\''%timeout%'\'' | fields traceId, spanId, severityText, body, `resource.attributes.service.name`, `@timestamp` | sort - `@timestamp` | head 20"}'
 ```
 
 ### Relevance Search with match
@@ -170,7 +172,7 @@ Use the `match` relevance function for full-text search on the body field:
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where match(body, '\''connection refused'\'') | fields traceId, spanId, severityText, body, serviceName, `@timestamp` | sort - `@timestamp` | head 20"}'
+  -d '{"query": "source=logs-otel-v1-* | where match(body, '\''connection refused'\'') | fields traceId, spanId, severityText, body, `resource.attributes.service.name`, `@timestamp` | sort - `@timestamp` | head 20"}'
 ```
 
 ### Relevance Search with match_phrase
@@ -181,7 +183,7 @@ Use `match_phrase` for exact phrase matching in the body:
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where match_phrase(body, '\''failed to connect'\'') | fields traceId, spanId, severityText, body, serviceName, `@timestamp` | sort - `@timestamp` | head 20"}'
+  -d '{"query": "source=logs-otel-v1-* | where match_phrase(body, '\''failed to connect'\'') | fields traceId, spanId, severityText, body, `resource.attributes.service.name`, `@timestamp` | sort - `@timestamp` | head 20"}'
 ```
 
 ## Cross-Signal Correlation
@@ -194,7 +196,7 @@ Find all logs associated with a specific span to understand what happened during
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where spanId = '\''<SPAN_ID>'\'' | fields traceId, spanId, severityText, body, serviceName, `@timestamp` | sort `@timestamp`"}'
+  -d '{"query": "source=logs-otel-v1-* | where spanId = '\''<SPAN_ID>'\'' | fields traceId, spanId, severityText, body, `resource.attributes.service.name`, `@timestamp` | sort `@timestamp`"}'
 ```
 
 ### Exception-Log Correlation with Traces
@@ -205,7 +207,7 @@ Find error logs and their associated trace spans. First, find error logs with tr
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where severityText = '\''ERROR'\'' AND traceId != '\'''\'' | fields traceId, spanId, body, serviceName, `@timestamp` | sort - `@timestamp` | head 20"}'
+  -d '{"query": "source=logs-otel-v1-* | where severityText = '\''ERROR'\'' AND traceId != '\'''\'' | fields traceId, spanId, body, `resource.attributes.service.name`, `@timestamp` | sort - `@timestamp` | head 20"}'
 ```
 
 Then query the trace index for the corresponding spans using the traceId from the error log:
@@ -223,7 +225,7 @@ Correlate exception spans with their associated error logs using shared traceId 
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where traceId = '\''<TRACE_ID>'\'' AND spanId = '\''<SPAN_ID>'\'' AND severityText = '\''ERROR'\'' | fields body, severityText, `@timestamp`"}'
+  -d '{"query": "source=logs-otel-v1-* | where traceId = '\''<TRACE_ID>'\'' AND spanId = '\''<SPAN_ID>'\'' AND severityText = '\''ERROR'\'' | fields body, severityText, `@timestamp`"}'
 ```
 
 ## PPL Commands for Log Analysis
@@ -258,7 +260,7 @@ curl -s --aws-sigv4 "aws:amz:REGION:es" \
   --user "$AWS_ACCESS_KEY_ID:$AWS_SECRET_ACCESS_KEY" \
   -X POST https://DOMAIN-ID.REGION.es.amazonaws.com/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where severityText = '\''ERROR'\'' | fields traceId, spanId, serviceName, body, `@timestamp` | sort - `@timestamp` | head 20"}'
+  -d '{"query": "source=logs-otel-v1-* | where severityText = '\''ERROR'\'' | fields traceId, spanId, `resource.attributes.service.name`, body, `@timestamp` | sort - `@timestamp` | head 20"}'
 ```
 
 - Endpoint format: `https://DOMAIN-ID.REGION.es.amazonaws.com`

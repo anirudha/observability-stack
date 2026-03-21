@@ -11,13 +11,13 @@ The plugin follows the open [Agent Skills](https://agentskills.io/) specificatio
 
 | Skill | What it does |
 |---|---|
-| **Traces** | PPL queries for agent invocations, tool executions, slow spans, error spans, token usage |
-| **Logs** | PPL queries for severity filtering, trace correlation, error patterns, log volume |
+| **Traces** | PPL queries for agent invocations, tool executions, slow spans, error spans, token usage, service maps, remote service identification |
+| **Logs** | PPL queries for severity filtering, trace correlation, error patterns, log volume, full-text search |
 | **Metrics** | PromQL queries for HTTP rates, latency percentiles, error rates, GenAI metrics |
 | **Stack Health** | Health checks, troubleshooting, port reference, diagnostic commands |
 | **PPL Reference** | 50+ PPL commands with syntax, examples, and function reference |
-| **Correlation** | Cross-signal workflows linking traces, logs, and metrics |
-| **APM RED** | Rate/Errors/Duration methodology queries for both PromQL and PPL |
+| **Correlation** | Cross-signal workflows linking traces, logs, and metrics with batch correlation and `coalesce()` patterns |
+| **APM RED** | Rate/Errors/Duration methodology queries with safe division, `topk()`, and availability patterns |
 | **SLO/SLI** | SLI definitions, recording rules, error budgets, burn rate alerts |
 
 ## Prerequisites
@@ -38,7 +38,7 @@ First, add the repository as a plugin marketplace:
 Then install the plugin:
 
 ```
-/plugin install observability@opensearch-project/observability-stack
+/plugin install observability@observability-stack
 ```
 
 All eight skills are registered and Claude automatically routes to the right one based on your question.
@@ -103,6 +103,8 @@ Check if the observability stack is healthy
 Calculate the error budget for a 99.9% availability SLO
 ```
 
+See the [Usage Guide](/docs/claude-code/usage/) for 50+ sample questions across all eight skills.
+
 ## Configuration
 
 ### Default endpoints
@@ -127,6 +129,20 @@ export PROMETHEUS_ENDPOINT=http://your-prometheus-host:9090
 
 The skill files include AWS SigV4 variants for Amazon OpenSearch Service and Amazon Managed Service for Prometheus. When using managed services, the query syntax stays the same — only the endpoint URL and authentication method change.
 
+## Index patterns
+
+The plugin queries these OpenSearch indices:
+
+| Signal | Index Pattern | Key Fields |
+|---|---|---|
+| Traces | `otel-v1-apm-span-*` | `traceId`, `spanId`, `serviceName`, `name`, `durationInNanos`, `status.code`, `attributes.gen_ai.*` |
+| Logs | `logs-otel-v1-*` | `traceId`, `spanId`, `severityText`, `body`, `resource.attributes.service.name`, `@timestamp` |
+| Service Maps | `otel-v2-apm-service-map-*` | `sourceNode`, `targetNode`, `sourceOperation`, `targetOperation` |
+
+:::note
+The log index uses `resource.attributes.service.name` (backtick-quoted in PPL as `` `resource.attributes.service.name` ``) instead of the top-level `serviceName` field found in the trace span index.
+:::
+
 ## Running the tests
 
 The plugin includes a test suite to validate skill file correctness:
@@ -142,8 +158,42 @@ pytest test_properties.py -v
 pytest -v
 ```
 
+## Troubleshooting
+
+### "Observability stack is not running"
+
+Tests and skills require OpenSearch and Prometheus to be running locally:
+
+```bash
+docker compose up -d opensearch prometheus
+```
+
+### OpenSearch returns "Unauthorized"
+
+Check the password in `.env` matches the default: `My_password_123!@#`
+
+### No trace or log data
+
+The stack includes example services that generate telemetry automatically. Verify they're running:
+
+```bash
+docker compose ps | grep -E "canary|weather|travel"
+```
+
+### Prometheus crash-looping (exit code 137)
+
+Clear the corrupted WAL data:
+
+```bash
+docker compose stop prometheus
+docker compose rm -f prometheus
+docker volume rm observability-stack_prometheus-data
+docker compose up -d prometheus
+```
+
 ## Related links
 
+- [Usage Guide](/docs/claude-code/usage/) — 50+ sample questions with real examples
 - [MCP Server](/docs/mcp/) — query OpenSearch via Model Context Protocol
 - [Investigate Traces](/docs/investigate/discover-traces/) — explore traces in OpenSearch Dashboards
 - [Investigate Logs](/docs/investigate/discover-logs/) — explore logs in OpenSearch Dashboards

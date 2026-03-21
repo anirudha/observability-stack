@@ -4,7 +4,7 @@
     curl -sk -u admin:'My_password_123!@#'
     -X POST https://localhost:9200/_plugins/_ppl
     -H 'Content-Type: application/json'
-    -d '{"query": "source=otel-v1-apm-log-* | where severityText = '\''ERROR'\'' | fields traceId, spanId, serviceName, body, `@timestamp` | sort - `@timestamp` | head 20"}'
+    -d '{"query": "source=logs-otel-v1-* | where severityText = '\''ERROR'\'' | fields traceId, spanId, `resource.attributes.service.name`, body, `@timestamp` | sort - `@timestamp` | head 20"}'
   expected_status_code: 200
   expected_fields:
     - schema
@@ -18,7 +18,7 @@
     curl -sk -u admin:'My_password_123!@#'
     -X POST https://localhost:9200/_plugins/_ppl
     -H 'Content-Type: application/json'
-    -d '{"query": "source=otel-v1-apm-log-* | where severityText = '\''WARN'\'' | fields traceId, spanId, serviceName, body, `@timestamp` | sort - `@timestamp` | head 20"}'
+    -d '{"query": "source=logs-otel-v1-* | where severityText = '\''WARN'\'' | fields traceId, spanId, `resource.attributes.service.name`, body, `@timestamp` | sort - `@timestamp` | head 20"}'
   expected_status_code: 200
   expected_fields:
     - schema
@@ -32,7 +32,7 @@
     curl -sk -u admin:'My_password_123!@#'
     -X POST https://localhost:9200/_plugins/_ppl
     -H 'Content-Type: application/json'
-    -d '{"query": "source=otel-v1-apm-log-* | where severityNumber >= 13 | fields severityText, severityNumber, serviceName, body, `@timestamp` | sort - `@timestamp` | head 20"}'
+    -d '{"query": "source=logs-otel-v1-* | where severityNumber >= 13 | fields severityText, severityNumber, `resource.attributes.service.name`, body, `@timestamp` | sort - `@timestamp` | head 20"}'
   expected_status_code: 200
   expected_fields:
     - schema
@@ -41,12 +41,12 @@
     - logs
 
 - name: trace_correlation
-  description: Find all logs associated with a specific trace by traceId
+  description: Find logs that have trace context (non-empty traceId)
   command: >-
     curl -sk -u admin:'My_password_123!@#'
     -X POST https://localhost:9200/_plugins/_ppl
     -H 'Content-Type: application/json'
-    -d '{"query": "source=otel-v1-apm-log-* | where traceId != '\'''\'' | fields traceId, spanId, severityText, body, serviceName, `@timestamp` | sort `@timestamp` | head 20"}'
+    -d '{"query": "source=logs-otel-v1-* | where traceId != '\'''\'' | fields traceId, spanId, severityText, body, `resource.attributes.service.name`, `@timestamp` | head 20"}'
   expected_status_code: 200
   expected_fields:
     - schema
@@ -60,7 +60,7 @@
     curl -sk -u admin:'My_password_123!@#'
     -X POST https://localhost:9200/_plugins/_ppl
     -H 'Content-Type: application/json'
-    -d '{"query": "source=otel-v1-apm-log-* | stats count() by severityText, serviceName"}'
+    -d '{"query": "source=logs-otel-v1-* | stats count() by severityText, `resource.attributes.service.name`"}'
   expected_status_code: 200
   expected_fields:
     - schema
@@ -74,7 +74,7 @@
     curl -sk -u admin:'My_password_123!@#'
     -X POST https://localhost:9200/_plugins/_ppl
     -H 'Content-Type: application/json'
-    -d '{"query": "source=otel-v1-apm-log-* | where severityText = '\''ERROR'\'' | stats count() as error_count by serviceName | sort - error_count"}'
+    -d '{"query": "source=logs-otel-v1-* | where severityText = '\''ERROR'\'' | stats count() as error_count by `resource.attributes.service.name` | sort - error_count"}'
   expected_status_code: 200
   expected_fields:
     - schema
@@ -88,7 +88,7 @@
     curl -sk -u admin:'My_password_123!@#'
     -X POST https://localhost:9200/_plugins/_ppl
     -H 'Content-Type: application/json'
-    -d '{"query": "source=otel-v1-apm-log-* | stats count() as log_count by span(`@timestamp`, 1h)"}'
+    -d '{"query": "source=logs-otel-v1-* | stats count() as log_count by span(`@timestamp`, 1h)"}'
   expected_status_code: 200
   expected_fields:
     - schema
@@ -102,7 +102,7 @@
     curl -sk -u admin:'My_password_123!@#'
     -X POST https://localhost:9200/_plugins/_ppl
     -H 'Content-Type: application/json'
-    -d '{"query": "source=otel-v1-apm-log-* | where body like '\''%timeout%'\'' | fields traceId, spanId, severityText, body, serviceName, `@timestamp` | sort - `@timestamp` | head 20"}'
+    -d '{"query": "source=logs-otel-v1-* | where body like '\''%error%'\'' | fields traceId, spanId, severityText, body, `resource.attributes.service.name`, `@timestamp` | sort - `@timestamp` | head 20"}'
   expected_status_code: 200
   expected_fields:
     - schema
@@ -116,7 +116,7 @@
     curl -sk -u admin:'My_password_123!@#'
     -X POST https://localhost:9200/_plugins/_ppl
     -H 'Content-Type: application/json'
-    -d '{"query": "source=otel-v1-apm-log-* | where match(body, '\''connection refused'\'') | fields traceId, spanId, severityText, body, serviceName, `@timestamp` | sort - `@timestamp` | head 20"}'
+    -d '{"query": "source=logs-otel-v1-* | where match(body, '\''failed'\'') | fields traceId, spanId, severityText, body, `resource.attributes.service.name`, `@timestamp` | sort - `@timestamp` | head 20"}'
   expected_status_code: 200
   expected_fields:
     - schema

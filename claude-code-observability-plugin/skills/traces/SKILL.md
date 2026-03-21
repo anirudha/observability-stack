@@ -102,14 +102,63 @@ curl -sk -u admin:'My_password_123!@#' \
 
 ## Service Map Queries
 
-Query the service dependency map to explore service topology:
+### Service Topology (Node Connections)
+
+Query the service dependency map to explore service-to-service connections. Use `dedup nodeConnectionHash` to get unique connections:
 
 ```bash
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v2-apm-service-map | fields serviceName, `destination.domain`, `destination.resource`, traceGroupName"}'
+  -d '{"query": "source=otel-v2-apm-service-map-* | dedup nodeConnectionHash | fields sourceNode, targetNode, sourceOperation, targetOperation"}'
 ```
+
+### Service Operations from Service Map
+
+List all operations for a specific service from the service map:
+
+```bash
+curl -sk -u admin:'My_password_123!@#' \
+  -X POST https://localhost:9200/_plugins/_ppl \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "source=otel-v2-apm-service-map-* | dedup operationConnectionHash | fields sourceNode, sourceOperation, targetNode, targetOperation"}'
+```
+
+### Dependency Count per Service
+
+Count how many downstream dependencies each service calls:
+
+```bash
+curl -sk -u admin:'My_password_123!@#' \
+  -X POST https://localhost:9200/_plugins/_ppl \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "source=otel-v2-apm-service-map-* | dedup nodeConnectionHash | stats distinct_count(targetNode) as dependency_count by sourceNode"}'
+```
+
+## Remote Service Identification with coalesce()
+
+Different OTel instrumentation libraries use different attributes to identify remote services. Use `coalesce()` to check multiple fields in priority order:
+
+```bash
+curl -sk -u admin:'My_password_123!@#' \
+  -X POST https://localhost:9200/_plugins/_ppl \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "source=otel-v1-apm-span-* | where serviceName = '\''frontend'\'' | where kind = '\''SPAN_KIND_CLIENT'\'' | eval _remoteService = coalesce(`attributes.net.peer.name`, `attributes.server.address`, `attributes.upstream_cluster`, `attributes.rpc.service`, `attributes.peer.service`, `attributes.db.system`, `attributes.gen_ai.system`, `attributes.http.host`, `attributes.messaging.destination.name`, '\'''\'' ) | where _remoteService != '\'''\'' | stats count() as calls by _remoteService | sort - calls"}'
+```
+
+**Remote service attribute priority:**
+
+| Field | Used By |
+|---|---|
+| `attributes.net.peer.name` | Node.js (frontend) |
+| `attributes.server.address` | Go, Java, .NET (checkout, cart) |
+| `attributes.upstream_cluster` | Envoy/Istio (frontend-proxy) |
+| `attributes.rpc.service` | gRPC services (recommendation) |
+| `attributes.peer.service` | Older OTel conventions |
+| `attributes.db.system` | Database clients (redis, postgresql) |
+| `attributes.gen_ai.system` | LLM clients (openai) |
+| `attributes.http.host` | HTTP clients |
+| `attributes.messaging.destination.name` | Message queues (Kafka, RabbitMQ) |
 
 ## Cross-Signal Correlation
 
@@ -121,7 +170,7 @@ Find all logs associated with a specific trace by querying the log index with th
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where traceId = '\''<TRACE_ID>'\'' | fields traceId, spanId, severityText, body, serviceName, `@timestamp` | sort `@timestamp`"}'
+  -d '{"query": "source=logs-otel-v1-* | where traceId = '\''<TRACE_ID>'\'' | fields traceId, spanId, severityText, body, `resource.attributes.service.name`, `@timestamp` | sort `@timestamp`"}'
 ```
 
 Join trace spans with correlated logs using PPL join:
@@ -130,7 +179,7 @@ Join trace spans with correlated logs using PPL join:
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-span-* | where traceId = '\''<TRACE_ID>'\'' | join left=s right=l ON s.traceId = l.traceId otel-v1-apm-log-* | fields s.spanId, s.name, l.severityText, l.body"}'
+  -d '{"query": "source=otel-v1-apm-span-* | where traceId = '\''<TRACE_ID>'\'' | join left=s right=l ON s.traceId = l.traceId logs-otel-v1-* | fields s.spanId, s.name, l.severityText, l.body"}'
 ```
 
 ### Trace Tree Reconstruction

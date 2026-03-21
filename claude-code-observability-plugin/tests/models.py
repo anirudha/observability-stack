@@ -1,3 +1,5 @@
+from typing import List, Optional
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -8,7 +10,7 @@ class TestFixture(BaseModel):
     description: str
     command: str
     expected_status_code: int
-    expected_fields: list[str]
-    tags: list[str]
-    before_test: str | None = None
-    after_test: str | None = None
+    expected_fields: List[str]
+    tags: List[str]
+    before_test: Optional[str] = None
+    after_test: Optional[str] = None

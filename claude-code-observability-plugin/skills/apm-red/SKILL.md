@@ -293,6 +293,62 @@ curl -s 'http://localhost:9090/api/v1/query' \
 > **Note:** This stack currently routes traces to OpenSearch via Data Prepper and metrics to Prometheus via OTLP. The `spanmetrics` connector is not enabled by default but can be added to `docker-compose/otel-collector/config.yaml` to auto-generate RED metrics from traces. This is useful when application-level HTTP metrics are not available.
 
 
+## Advanced PromQL Patterns
+
+### Safe Division (Avoid NaN/Inf)
+
+When dividing metrics (e.g., error rate = errors/total), use `clamp_min()` to avoid division-by-zero which produces NaN or Inf:
+
+```bash
+curl -s 'http://localhost:9090/api/v1/query' \
+  --data-urlencode 'query=sum(rate(http_server_duration_seconds_count{http_response_status_code=~"5.."}[5m])) by (service_name) / clamp_min(sum(rate(http_server_duration_seconds_count[5m])) by (service_name), 1) * 100'
+```
+
+### Top-K Services by Fault Rate
+
+Find the top 5 services with the highest fault rate using `topk()`:
+
+```bash
+curl -s 'http://localhost:9090/api/v1/query' \
+  --data-urlencode 'query=topk(5, sum(rate(http_server_duration_seconds_count{http_response_status_code=~"5.."}[5m])) by (service_name) / clamp_min(sum(rate(http_server_duration_seconds_count[5m])) by (service_name), 1) * 100)'
+```
+
+### Top-K Operations by Fault Rate for a Service
+
+Drill into a specific service to find its worst-performing operations:
+
+```bash
+curl -s 'http://localhost:9090/api/v1/query' \
+  --data-urlencode 'query=topk(5, sum(rate(http_server_duration_seconds_count{http_response_status_code=~"5..", service_name="frontend"}[5m])) by (http_route) / clamp_min(sum(rate(http_server_duration_seconds_count{service_name="frontend"}[5m])) by (http_route), 1) * 100)'
+```
+
+### Service Availability
+
+Calculate availability as the inverse of fault rate (percentage of non-5xx responses):
+
+```bash
+curl -s 'http://localhost:9090/api/v1/query' \
+  --data-urlencode 'query=(1 - sum(rate(http_server_duration_seconds_count{http_response_status_code=~"5.."}[5m])) by (service_name) / clamp_min(sum(rate(http_server_duration_seconds_count[5m])) by (service_name), 1)) * 100'
+```
+
+### Bottom-K Services by Availability
+
+Find the 5 services with the lowest availability (most errors):
+
+```bash
+curl -s 'http://localhost:9090/api/v1/query' \
+  --data-urlencode 'query=bottomk(5, (1 - sum(rate(http_server_duration_seconds_count{http_response_status_code=~"5.."}[5m])) by (service_name) / clamp_min(sum(rate(http_server_duration_seconds_count[5m])) by (service_name), 1)) * 100)'
+```
+
+### Per-Operation RED Metrics for a Service
+
+Get latency, request rate, and error rate per operation for a specific service:
+
+```bash
+curl -s 'http://localhost:9090/api/v1/query' \
+  --data-urlencode 'query=histogram_quantile(0.95, sum(rate(http_server_duration_seconds_bucket{service_name="checkout"}[5m])) by (le, http_route))'
+```
+
 ## AWS Managed Service Variants
 
 ### Amazon OpenSearch Service (SigV4)

@@ -337,7 +337,7 @@ Extract fields from text using a regular expression with named groups.
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | parse body '\''(?P<level>\\w+): (?P<msg>.+)'\'' | fields level, msg | head 10"}'
+  -d '{"query": "source=logs-otel-v1-* | parse body '\''(?P<level>\\w+): (?P<msg>.+)'\'' | fields level, msg | head 10"}'
 ```
 
 #### grok
@@ -350,7 +350,7 @@ Extract fields using Grok patterns (predefined regex patterns).
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | grok body '\''%{LOGLEVEL:level} %{GREEDYDATA:message}'\'' | fields level, message | head 10"}'
+  -d '{"query": "source=logs-otel-v1-* | grok body '\''%{LOGLEVEL:level} %{GREEDYDATA:message}'\'' | fields level, message | head 10"}'
 ```
 
 #### rex
@@ -363,7 +363,7 @@ Extract fields using named capture groups (similar to parse but with Splunk-comp
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | rex field=body '\''(?<status_code>\\d{3})'\'' | fields status_code, body | head 10"}'
+  -d '{"query": "source=logs-otel-v1-* | rex field=body '\''(?<status_code>\\d{3})'\'' | fields status_code, body | head 10"}'
 ```
 
 #### regex
@@ -376,7 +376,7 @@ Filter results using a regular expression match on a field.
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where body like '\''%error%'\'' | fields traceId, body, severityText | head 10"}'
+  -d '{"query": "source=logs-otel-v1-* | where body like '\''%error%'\'' | fields traceId, body, severityText | head 10"}'
 ```
 
 #### patterns
@@ -389,7 +389,7 @@ Auto-discover log patterns by clustering similar log messages.
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | patterns body | fields body, patterns_field | head 20"}'
+  -d '{"query": "source=logs-otel-v1-* | patterns body | fields body, patterns_field | head 20"}'
 ```
 
 #### spath
@@ -419,7 +419,7 @@ Types: `inner`, `left`, `right`, `cross`.
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-span-* | join left=s right=l ON s.traceId = l.traceId otel-v1-apm-log-* | fields s.spanId, s.name, l.severityText, l.body | head 10"}'
+  -d '{"query": "source=otel-v1-apm-span-* | join left=s right=l ON s.traceId = l.traceId logs-otel-v1-* | fields s.spanId, s.name, l.severityText, l.body | head 10"}'
 ```
 
 #### lookup
@@ -471,7 +471,7 @@ Append results from another query to the current result set.
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-span-* | stats count() as cnt by serviceName | append [ source=otel-v1-apm-log-* | stats count() as cnt by serviceName ] | head 20"}'
+  -d '{"query": "source=otel-v1-apm-span-* | stats count() as cnt by serviceName | append [ source=logs-otel-v1-* | stats count() as cnt by `resource.attributes.service.name` ] | head 20"}'
 ```
 
 #### appendcol
@@ -484,7 +484,7 @@ Append columns from another query to the current result set.
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-span-* | stats count() as span_count | appendcol [ source=otel-v1-apm-log-* | stats count() as log_count ]"}'
+  -d '{"query": "source=otel-v1-apm-span-* | stats count() as span_count | appendcol [ source=logs-otel-v1-* | stats count() as log_count ]"}'
 ```
 
 #### appendpipe
@@ -579,7 +579,7 @@ Replace values in a field using a regex or literal match.
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | replace severityText '\''ERROR'\'' WITH '\''ERR'\'' | fields severityText, body | head 10"}'
+  -d '{"query": "source=logs-otel-v1-* | replace severityText '\''ERROR'\'' WITH '\''ERR'\'' | fields severityText, body | head 10"}'
 ```
 
 #### reverse
@@ -765,7 +765,7 @@ curl -sk -u admin:'My_password_123!@#' \
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | stats count() as total_logs"}'
+  -d '{"query": "source=logs-otel-v1-* | stats count() as total_logs"}'
 ```
 
 ### Display Commands
@@ -1155,7 +1155,7 @@ Full-text search functions for relevance-based querying.
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where match(body, '\''timeout error'\'') | fields traceId, severityText, body | head 10"}'
+  -d '{"query": "source=logs-otel-v1-* | where match(body, '\''timeout error'\'') | fields traceId, severityText, body | head 10"}'
 ```
 
 ### Statistical Functions
@@ -1220,7 +1220,7 @@ Functions for string manipulation.
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | eval body_lower = lower(body) | where body_lower like '\''%exception%'\'' | eval short_body = left(body, 200) | fields traceId, severityText, short_body | head 10"}'
+  -d '{"query": "source=logs-otel-v1-* | eval body_lower = lower(body) | where body_lower like '\''%exception%'\'' | eval short_body = left(body, 200) | fields traceId, severityText, short_body | head 10"}'
 ```
 
 ### System Functions

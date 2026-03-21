@@ -54,7 +54,7 @@ List all indices to verify data ingestion has created the expected trace, log, a
 curl -sk -u admin:'My_password_123!@#' https://localhost:9200/_cat/indices?v
 ```
 
-You should see indices matching `otel-v1-apm-span-*`, `otel-v1-apm-log-*`, and `otel-v2-apm-service-map` if data is flowing.
+You should see indices matching `otel-v1-apm-span-*`, `logs-otel-v1-*`, and `otel-v2-apm-service-map` if data is flowing.
 
 ## Data Verification
 
@@ -77,7 +77,7 @@ Verify log data exists by counting documents in the log index:
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | stats count()"}'
+  -d '{"query": "source=logs-otel-v1-* | stats count()"}'
 ```
 
 A count of 0 in either query indicates no data has been ingested for that signal. See the Troubleshooting section below.

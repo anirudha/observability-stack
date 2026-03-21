@@ -90,3 +90,13 @@ curl -s --aws-sigv4 "aws:amz:REGION:aps" \
 | Data Prepper | 21890 | HTTP |
 | Prometheus | 9090 | HTTP |
 | OpenSearch Dashboards | 5601 | HTTP |
+
+## Index Patterns
+
+| Signal | Index Pattern | Key Fields |
+|---|---|---|
+| Traces | `otel-v1-apm-span-*` | `traceId`, `spanId`, `serviceName`, `name`, `durationInNanos`, `status.code`, `attributes.gen_ai.*` |
+| Logs | `logs-otel-v1-*` | `traceId`, `spanId`, `severityText`, `body`, `resource.attributes.service.name`, `@timestamp` |
+| Service Maps | `otel-v2-apm-service-map-*` | `sourceNode`, `targetNode`, `sourceOperation`, `targetOperation` |
+
+> **Note:** The log index uses `resource.attributes.service.name` (backtick-quoted in PPL) instead of `serviceName`. The trace span index has a top-level `serviceName` field.

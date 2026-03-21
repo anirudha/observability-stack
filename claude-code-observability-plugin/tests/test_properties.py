@@ -116,7 +116,7 @@ def _collect_ppl_curl_blocks() -> list[tuple[str, str]]:
     """Extract code blocks containing PPL queries from traces.md and logs.md.
 
     Returns (file_name, code_block) pairs for blocks that contain
-    ``otel-v1-apm-`` (the observability index pattern).
+    an observability index pattern (``otel-v1-apm-`` or ``logs-otel-v1-``).
     """
     results: list[tuple[str, str]] = []
     for name in ("traces", "logs"):
@@ -125,7 +125,7 @@ def _collect_ppl_curl_blocks() -> list[tuple[str, str]]:
             continue
         blocks = _extract_bash_code_blocks(_read_skill(path))
         for block in blocks:
-            if "otel-v1-apm-" in block and "aws-sigv4" not in block:
+            if ("otel-v1-apm-" in block or "logs-otel-v1-" in block) and "aws-sigv4" not in block:
                 # Use first meaningful line as id
                 first_line = block.strip().split("\n")[0][:80]
                 results.append((f"{name}: {first_line}", block))
@@ -296,7 +296,7 @@ def test_property_5_ppl_command_doc_completeness(section_body: str) -> None:
     # Must have at least one example using an observability index pattern
     # Most commands use otel-v1-apm-*, but some (graphlookup) use otel-v2-apm-*
     # and system commands (showdatasources) use system queries without index patterns
-    has_otel_index = "otel-v1-apm-" in section_body or "otel-v2-apm-" in section_body
+    has_otel_index = "otel-v1-apm-" in section_body or "otel-v2-apm-" in section_body or "logs-otel-v1-" in section_body
     has_system_query = "show datasources" in section_body.lower() or "describe" in section_body.lower()
     assert has_otel_index or has_system_query, (
         "Command section must include at least one example using an observability index pattern "

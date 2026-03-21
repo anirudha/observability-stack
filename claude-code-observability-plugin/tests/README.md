@@ -4,7 +4,7 @@ Integration and property-based tests for the Claude Code Observability Plugin.
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.9+
 - Install dependencies:
   ```bash
   pip install -r requirements.txt

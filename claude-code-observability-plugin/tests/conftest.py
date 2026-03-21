@@ -24,13 +24,13 @@ DEFAULTS = {
 }
 
 
-def parse_env_file(path: str) -> dict[str, str]:
+def parse_env_file(path: str) -> "dict[str, str]":
     """Read a .env file and return a dict of key-value pairs.
 
     Handles comments, blank lines, and optional quoting of values.
     Returns an empty dict if the file does not exist.
     """
-    env_vars: dict[str, str] = {}
+    env_vars = {}
     try:
         with open(path, encoding="utf-8") as fh:
             for line in fh:
@@ -51,14 +51,23 @@ def parse_env_file(path: str) -> dict[str, str]:
     return env_vars
 
 
-def load_config() -> dict[str, str]:
-    """Build a config dict from the .env file with fallback defaults."""
+def load_config() -> "dict[str, str]":
+    """Build a config dict from the .env file with fallback defaults.
+
+    Note: OPENSEARCH_HOST in .env is typically the Docker service name (e.g.
+    ``opensearch``) which is not reachable from the host.  Tests always connect
+    via ``localhost`` unless overridden by the ``TEST_OPENSEARCH_HOST`` or
+    ``TEST_PROMETHEUS_HOST`` environment variables.
+    """
     env = parse_env_file(ENV_FILE_PATH)
 
-    opensearch_host = env.get("OPENSEARCH_HOST", DEFAULTS["OPENSEARCH_HOST"])
+    opensearch_host = os.environ.get(
+        "TEST_OPENSEARCH_HOST", DEFAULTS["OPENSEARCH_HOST"]
+    )
     opensearch_port = env.get("OPENSEARCH_PORT", DEFAULTS["OPENSEARCH_PORT"])
     opensearch_user = env.get("OPENSEARCH_USER", DEFAULTS["OPENSEARCH_USER"])
     opensearch_password = env.get("OPENSEARCH_PASSWORD", DEFAULTS["OPENSEARCH_PASSWORD"])
+    prometheus_host = os.environ.get("TEST_PROMETHEUS_HOST", "localhost")
     prometheus_port = env.get("PROMETHEUS_PORT", DEFAULTS["PROMETHEUS_PORT"])
 
     return {
@@ -66,10 +75,10 @@ def load_config() -> dict[str, str]:
         "opensearch_port": opensearch_port,
         "opensearch_user": opensearch_user,
         "opensearch_password": opensearch_password,
-        "prometheus_host": "localhost",
+        "prometheus_host": prometheus_host,
         "prometheus_port": prometheus_port,
         "opensearch_url": f"https://{opensearch_host}:{opensearch_port}",
-        "prometheus_url": f"http://localhost:{prometheus_port}",
+        "prometheus_url": f"http://{prometheus_host}:{prometheus_port}",
     }
 
 
@@ -94,7 +103,7 @@ def pytest_configure(config: pytest.Config) -> None:
 # --------------------------------------------------------------------------- #
 
 @pytest.fixture(scope="session")
-def stack_config() -> dict[str, str]:
+def stack_config() -> "dict[str, str]":
     """Return the resolved stack configuration dict."""
     return load_config()
 

@@ -27,7 +27,7 @@ Traces and logs share `traceId` and `spanId` fields. When an application emits a
 | `traceFlags` | Logs | integer | W3C trace flags (e.g., 01 = sampled) carried on log records |
 
 - In the Trace_Index (`otel-v1-apm-span-*`): `traceId` and `spanId` identify each span
-- In the Log_Index (`otel-v1-apm-log-*`): `traceId` and `spanId` link the log to the span that was active when the log was emitted
+- In the Log_Index (`logs-otel-v1-*`): `traceId` and `spanId` link the log to the span that was active when the log was emitted
 
 ### Metric-to-Trace Correlation (Prometheus Exemplars)
 
@@ -47,13 +47,13 @@ Exemplar data model:
 
 All three signals (traces, logs, metrics) share resource attributes that identify the originating service. These attributes are set by the OTel SDK and propagated through the pipeline:
 
-| Resource Attribute | Traces/Logs Field | Prometheus Label | Description |
-|---|---|---|---|
-| `service.name` | `serviceName` | `service_name` | Service that produced the telemetry |
-| `service.namespace` | `resource.service.namespace` | `service_namespace` | Namespace grouping related services |
-| `service.version` | `resource.service.version` | `service_version` | Service version string |
-| `service.instance.id` | `resource.service.instance.id` | `service_instance_id` | Unique instance identifier |
-| `deployment.environment.name` | `resource.deployment.environment.name` | `deployment_environment_name` | Deployment environment (e.g., production, staging) |
+| Resource Attribute | Traces Field | Logs Field | Prometheus Label | Description |
+|---|---|---|---|---|
+| `service.name` | `serviceName` | `resource.attributes.service.name` | `service_name` | Service that produced the telemetry |
+| `service.namespace` | `resource.service.namespace` | `resource.attributes.service.namespace` | `service_namespace` | Namespace grouping related services |
+| `service.version` | `resource.service.version` | `resource.attributes.service.version` | `service_version` | Service version string |
+| `service.instance.id` | `resource.service.instance.id` | `resource.attributes.service.instance.id` | `service_instance_id` | Unique instance identifier |
+| `deployment.environment.name` | `resource.deployment.environment.name` | `resource.attributes.deployment.environment.name` | `deployment_environment_name` | Deployment environment (e.g., production, staging) |
 
 The OTel Collector's `resourcedetection` processor enriches telemetry with environment context, and the Prometheus `promote_resource_attributes` configuration (in `docker-compose/prometheus/prometheus.yml`) promotes these resource attributes to metric labels so they are queryable in PromQL.
 
@@ -80,7 +80,7 @@ Given a trace ID, find all log entries emitted during that trace:
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where traceId = '\''<TRACE_ID>'\'' | fields traceId, spanId, severityText, body, serviceName, `@timestamp` | sort `@timestamp`"}'
+  -d '{"query": "source=logs-otel-v1-* | where traceId = '\''<TRACE_ID>'\'' | fields traceId, spanId, severityText, body, `resource.attributes.service.name`, `@timestamp` | sort `@timestamp`"}'
 ```
 
 ### Find Logs by spanId
@@ -91,7 +91,7 @@ Given a span ID, find all log entries emitted during that specific span:
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where spanId = '\''<SPAN_ID>'\'' | fields traceId, spanId, severityText, body, serviceName, `@timestamp` | sort `@timestamp`"}'
+  -d '{"query": "source=logs-otel-v1-* | where spanId = '\''<SPAN_ID>'\'' | fields traceId, spanId, severityText, body, `resource.attributes.service.name`, `@timestamp` | sort `@timestamp`"}'
 ```
 
 ### Join Spans and Logs by traceId
@@ -102,7 +102,7 @@ Use PPL `join` to combine trace spans with their correlated logs in a single que
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-span-* | where traceId = '\''<TRACE_ID>'\'' | join left=s right=l ON s.traceId = l.traceId otel-v1-apm-log-* | fields s.spanId, s.name, s.serviceName, s.durationInNanos, l.severityText, l.body, l.`@timestamp`"}'
+  -d '{"query": "source=otel-v1-apm-span-* | where traceId = '\''<TRACE_ID>'\'' | join left=s right=l ON s.traceId = l.traceId logs-otel-v1-* | fields s.spanId, s.name, s.serviceName, s.durationInNanos, l.severityText, l.body, l.`@timestamp`"}'
 ```
 
 ### Full Timeline Reconstruction
@@ -124,7 +124,7 @@ Step 2 — Get all logs for the trace:
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where traceId = '\''<TRACE_ID>'\'' | eval signal = '\''log'\'' | fields traceId, spanId, serviceName, severityText, body, `@timestamp`, signal | sort `@timestamp`"}'
+  -d '{"query": "source=logs-otel-v1-* | where traceId = '\''<TRACE_ID>'\'' | eval signal = '\''log'\'' | fields traceId, spanId, `resource.attributes.service.name`, severityText, body, `@timestamp`, signal | sort `@timestamp`"}'
 ```
 
 Merge both result sets by timestamp to see the full chronological sequence of spans and log entries for the request.
@@ -142,7 +142,7 @@ Step 1 — Find error logs and get their traceId:
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where severityText = '\''ERROR'\'' | fields traceId, spanId, severityText, body, serviceName, `@timestamp` | sort - `@timestamp` | head 10"}'
+  -d '{"query": "source=logs-otel-v1-* | where severityText = '\''ERROR'\'' | fields traceId, spanId, severityText, body, `resource.attributes.service.name`, `@timestamp` | sort - `@timestamp` | head 10"}'
 ```
 
 Step 2 — Query the Trace_Index with the extracted traceId to get all spans:
@@ -263,7 +263,7 @@ Find all logs from the same service:
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where serviceName = '\''my-service'\'' | stats count() by severityText"}'
+  -d '{"query": "source=logs-otel-v1-* | where `resource.attributes.service.name` = '\''my-service'\'' | stats count() by severityText"}'
 ```
 
 Find all metrics from the same service in Prometheus:
@@ -298,7 +298,7 @@ curl -s 'http://localhost:9090/api/v1/query' \
 3. For traces and logs: resource attributes are stored in OpenSearch as part of the document
 4. For metrics: the Prometheus `promote_resource_attributes` configuration (in `docker-compose/prometheus/prometheus.yml`) promotes resource attributes to metric labels, making them queryable in PromQL
 
-This ensures the same `service.name` value appears in traces (`serviceName` field), logs (`serviceName` field), and metrics (`service_name` label) — enabling service-level correlation across all backends.
+This ensures the same `service.name` value appears in traces (`serviceName` field), logs (`resource.attributes.service.name` field), and metrics (`service_name` label) — enabling service-level correlation across all backends.
 
 
 ## Correlation Workflows
@@ -342,7 +342,7 @@ curl -sk -u admin:'My_password_123!@#' \
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where traceId = '\''<TRACE_ID_FROM_EXEMPLAR>'\'' | fields traceId, spanId, severityText, body, serviceName, `@timestamp` | sort `@timestamp`"}'
+  -d '{"query": "source=logs-otel-v1-* | where traceId = '\''<TRACE_ID_FROM_EXEMPLAR>'\'' | fields traceId, spanId, severityText, body, `resource.attributes.service.name`, `@timestamp` | sort `@timestamp`"}'
 ```
 
 ### Workflow 2: Error Log Investigation
@@ -355,7 +355,7 @@ Start from an error log and trace back to the root cause.
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where severityText = '\''ERROR'\'' | fields traceId, spanId, severityText, body, serviceName, `@timestamp` | sort - `@timestamp` | head 10"}'
+  -d '{"query": "source=logs-otel-v1-* | where severityText = '\''ERROR'\'' | fields traceId, spanId, severityText, body, `resource.attributes.service.name`, `@timestamp` | sort - `@timestamp` | head 10"}'
 ```
 
 **Step 2 — Extract the traceId from the error log and reconstruct the full trace tree:**
@@ -382,7 +382,7 @@ curl -sk -u admin:'My_password_123!@#' \
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where traceId = '\''<TRACE_ID_FROM_ERROR_LOG>'\'' | fields traceId, spanId, severityText, body, `@timestamp` | sort `@timestamp`"}'
+  -d '{"query": "source=logs-otel-v1-* | where traceId = '\''<TRACE_ID_FROM_ERROR_LOG>'\'' | fields traceId, spanId, severityText, body, `@timestamp` | sort `@timestamp`"}'
 ```
 
 ### Workflow 3: Slow Agent Investigation
@@ -424,7 +424,7 @@ curl -sk -u admin:'My_password_123!@#' \
 curl -sk -u admin:'My_password_123!@#' \
   -X POST https://localhost:9200/_plugins/_ppl \
   -H 'Content-Type: application/json' \
-  -d '{"query": "source=otel-v1-apm-log-* | where traceId = '\''<TRACE_ID>'\'' | fields spanId, severityText, body, `@timestamp` | sort `@timestamp`"}'
+  -d '{"query": "source=logs-otel-v1-* | where traceId = '\''<TRACE_ID>'\'' | fields spanId, severityText, body, `@timestamp` | sort `@timestamp`"}'
 ```
 
 **Step 5 — Check GenAI token usage metrics for the agent via PromQL:**
@@ -436,6 +436,56 @@ curl -s 'http://localhost:9090/api/v1/query' \
 
 Check if the agent is consuming unusually high token counts, which may explain slow response times.
 
+
+## Advanced Correlation Patterns
+
+### Batch Log Correlation via traceId IN List
+
+When you have a set of traceIds from span queries, use `IN` to fetch all correlated logs in one query:
+
+```bash
+curl -sk -u admin:'My_password_123!@#' \
+  -X POST https://localhost:9200/_plugins/_ppl \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "source=logs-otel-v1-* | where traceId IN ('\''<TRACE_ID_1>'\'', '\''<TRACE_ID_2>'\'', '\''<TRACE_ID_3>'\'') | fields traceId, spanId, severityText, body, `resource.attributes.service.name`, `@timestamp` | sort `@timestamp`"}'
+```
+
+This is more efficient than querying logs one traceId at a time.
+
+### Log Correlation with Fallback for Missing Trace Context
+
+Some logs may have empty or null traceId. Include those alongside correlated logs:
+
+```bash
+curl -sk -u admin:'My_password_123!@#' \
+  -X POST https://localhost:9200/_plugins/_ppl \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "source=logs-otel-v1-* | where `resource.attributes.service.name` = '\''frontend'\'' | where (traceId IN ('\''<TRACE_ID_1>'\'', '\''<TRACE_ID_2>'\'') OR traceId = '\'''\'' OR isnull(traceId)) | sort - `@timestamp` | head 50"}'
+```
+
+### Remote Service Dependency Correlation
+
+Identify which remote services a given service calls using `coalesce()` across OTel attribute variants. Different instrumentation libraries (Node.js, Go, Python, .NET) use different attributes:
+
+```bash
+curl -sk -u admin:'My_password_123!@#' \
+  -X POST https://localhost:9200/_plugins/_ppl \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "source=otel-v1-apm-span-* | where serviceName = '\''checkout'\'' | where kind = '\''SPAN_KIND_CLIENT'\'' | eval _remoteService = coalesce(`attributes.net.peer.name`, `attributes.server.address`, `attributes.rpc.service`, `attributes.db.system`, `attributes.gen_ai.system`, '\''unknown'\'') | stats count() as calls, avg(durationInNanos) as avg_latency by _remoteService | sort - calls"}'
+```
+
+### Field Reference by Protocol
+
+When correlating across different service types, these are the key fields by protocol:
+
+| Protocol | Remote Service Field | Operation Field |
+|---|---|---|
+| gRPC | `attributes.net.peer.name` or `attributes.server.address` | `attributes.rpc.method` |
+| HTTP | `attributes.http.host` or `attributes.server.address` | `attributes.http.route` |
+| Database | `attributes.db.system` + `attributes.server.address` | `attributes.db.statement` |
+| Envoy/Istio | `attributes.upstream_cluster` | span `name` |
+| LLM/GenAI | `attributes.gen_ai.system` + `attributes.server.address` | `attributes.gen_ai.request.model` |
+| Message Queue | `attributes.messaging.destination.name` | span `name` |
 
 ## AWS Managed Service Variants
 

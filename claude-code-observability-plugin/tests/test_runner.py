@@ -24,7 +24,7 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 DEFAULT_TIMEOUT = 30  # seconds
 
 # Tag string → pytest marker mapping
-TAG_MARKER_MAP: dict[str, str] = {
+TAG_MARKER_MAP = {
     "traces": "traces",
     "logs": "logs",
     "metrics": "metrics",
