@@ -129,6 +129,11 @@ export default defineConfig({
 					collapsed: true,
 					autogenerate: { directory: 'sdks' },
 				},
+				{
+					label: 'Claude Code',
+					collapsed: true,
+					autogenerate: { directory: 'claude-code' },
+				},
 			],
 		}),
 	],
