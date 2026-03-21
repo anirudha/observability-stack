@@ -34,6 +34,7 @@ TAG_MARKER_MAP = {
     "correlation": "correlation",
     "apm_red": "apm_red",
     "slo_sli": "slo_sli",
+    "topology": "topology",
 }
 
 # ---------------------------------------------------------------------------

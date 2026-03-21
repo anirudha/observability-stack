@@ -96,6 +96,7 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "correlation: cross-signal correlation tests")
     config.addinivalue_line("markers", "apm_red: APM RED metrics tests")
     config.addinivalue_line("markers", "slo_sli: SLO/SLI query tests")
+    config.addinivalue_line("markers", "topology: service topology discovery tests")
 
 
 # --------------------------------------------------------------------------- #

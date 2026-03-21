@@ -445,6 +445,39 @@ curl -s "$PROMETHEUS_ENDPOINT/api/v1/query" \
 Check if the agent is consuming unusually high token counts, which may explain slow response times.
 
 
+## Dynamic Field Discovery for Correlation
+
+When correlating across signals, use `describe` or `_mapping` to discover available fields dynamically. This is especially useful when index schemas differ from the defaults.
+
+### Discover Trace Index Fields
+
+```bash
+curl -sk -u "$OPENSEARCH_USER:$OPENSEARCH_PASSWORD" \
+  -X POST "$OPENSEARCH_ENDPOINT/_plugins/_ppl" \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "describe otel-v1-apm-span-000001"}'
+```
+
+### Discover Log Index Fields
+
+```bash
+curl -sk -u "$OPENSEARCH_USER:$OPENSEARCH_PASSWORD" \
+  -X POST "$OPENSEARCH_ENDPOINT/_plugins/_ppl" \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "describe logs-otel-v1-000001"}'
+```
+
+### Discover Service Map Fields
+
+```bash
+curl -sk -u "$OPENSEARCH_USER:$OPENSEARCH_PASSWORD" \
+  -X POST "$OPENSEARCH_ENDPOINT/_plugins/_ppl" \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "describe otel-v2-apm-service-map-000001"}'
+```
+
+Use the field names from `describe` output to construct correlation queries when the default field names don't match your index schema.
+
 ## Advanced Correlation Patterns
 
 ### Batch Log Correlation via traceId IN List

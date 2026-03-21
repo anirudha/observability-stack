@@ -246,6 +246,49 @@ curl -sk -u "$OPENSEARCH_USER:$OPENSEARCH_PASSWORD" \
 
 This is useful for diagnosing slow queries, understanding how filters are applied, and verifying that field names resolve correctly.
 
+## Dynamic Index Discovery
+
+### List All Observability Indices
+
+Discover which observability indices exist and their sizes:
+
+```bash
+curl -sk -u "$OPENSEARCH_USER:$OPENSEARCH_PASSWORD" \
+  "$OPENSEARCH_ENDPOINT/_cat/indices/otel-*,logs-otel-*?format=json&h=index,health,docs.count,store.size&s=index"
+```
+
+### Get Index Field Mappings
+
+Discover available fields in each index dynamically instead of relying on hardcoded field names:
+
+```bash
+curl -sk -u "$OPENSEARCH_USER:$OPENSEARCH_PASSWORD" \
+  "$OPENSEARCH_ENDPOINT/otel-v1-apm-span-*/_mapping?pretty"
+```
+
+```bash
+curl -sk -u "$OPENSEARCH_USER:$OPENSEARCH_PASSWORD" \
+  "$OPENSEARCH_ENDPOINT/logs-otel-v1-*/_mapping?pretty"
+```
+
+### PPL Describe for Field Discovery
+
+Use PPL `describe` to list all fields and types in an index:
+
+```bash
+curl -sk -u "$OPENSEARCH_USER:$OPENSEARCH_PASSWORD" \
+  -X POST "$OPENSEARCH_ENDPOINT/_plugins/_ppl" \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "describe otel-v1-apm-span-000001"}'
+```
+
+```bash
+curl -sk -u "$OPENSEARCH_USER:$OPENSEARCH_PASSWORD" \
+  -X POST "$OPENSEARCH_ENDPOINT/_plugins/_ppl" \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "describe logs-otel-v1-000001"}'
+```
+
 ## References
 
 - [PPL Language Reference](https://github.com/opensearch-project/sql/blob/main/docs/user/ppl/index.md) — Official PPL syntax documentation. Fetch this if queries fail due to OpenSearch version differences or new syntax.

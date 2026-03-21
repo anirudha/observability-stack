@@ -1,6 +1,6 @@
 # OpenSearch Observability Plugin for Claude Code
 
-This plugin teaches Claude Code how to query and investigate traces, logs, and metrics from an OpenSearch-based observability stack. It provides eight skill files containing PPL (Piped Processing Language) query templates for OpenSearch, PromQL query templates for Prometheus, and curl-based commands — all ready to execute against a running stack.
+This plugin teaches Claude Code how to query and investigate traces, logs, and metrics from an OpenSearch-based observability stack. It provides nine skill files containing PPL (Piped Processing Language) query templates for OpenSearch, PromQL query templates for Prometheus, and curl-based commands — all ready to execute against a running stack.
 
 ## Skill Routing Table
 
@@ -16,6 +16,7 @@ Load the appropriate skill file based on the user's intent:
 | `skills/correlation/SKILL.md` | Use when performing cross-signal correlation between traces, logs, and metrics |
 | `skills/apm-red/SKILL.md` | Use when analyzing RED metrics (Rate, Errors, Duration) for service-level monitoring |
 | `skills/slo-sli/SKILL.md` | Use when defining SLOs/SLIs, calculating error budgets, or setting up burn rate alerts |
+| `skills/osd-config/SKILL.md` | Use when discovering index patterns, workspaces, saved objects, APM configs, or field mappings from OpenSearch Dashboards or OpenSearch APIs |
 
 ## Configuration
 
