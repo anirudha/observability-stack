@@ -84,11 +84,11 @@ curl -s -u "$OPENSEARCH_USER:$OPENSEARCH_PASSWORD" \
 
 Datasets are an evolution of index patterns that classify indices by signal type (logs, traces, metrics). Users define which indices are logs vs traces through the Dashboards UI. See [Dataset Discovery documentation](https://docs.opensearch.org/latest/observing-your-data/exploring-observability-data/datasets/) for details.
 
-To discover datasets programmatically, query the index patterns and check their `dataSourceType` or use the saved objects API to find index patterns with observability schema mappings:
+To discover datasets programmatically, query the saved objects API for index patterns with their `signalType`, `displayName`, and `description` fields:
 
 ```bash
 curl -s -u "$OPENSEARCH_USER:$OPENSEARCH_PASSWORD" \
-  "$OSD_ENDPOINT/api/saved_objects/_find?type=index-pattern&per_page=100&fields=title&fields=dataSourceType" \
+  "$OSD_ENDPOINT/api/saved_objects/_find?fields=title&fields=type&fields=displayName&fields=signalType&fields=description&per_page=10000&type=index-pattern" \
   -H 'osd-xsrf: true'
 ```
 
