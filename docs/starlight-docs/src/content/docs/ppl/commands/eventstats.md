@@ -26,7 +26,7 @@ eventstats [bucket_nullable=<bool>] <function>... [by <by-clause>]
 | `<function>` | Yes | One or more aggregation functions (e.g., `avg(field)`, `count()`, `max(field)`). Each produces a new field in every row. |
 | `bucket_nullable` | No | Whether `null` values form their own group in `by` aggregations. Default is controlled by `plugins.ppl.syntax.legacy.preferred`. |
 | `<by-clause>` | No | Group results by one or more fields or expressions. Syntax: `by [span-expression,] [field,]...`. Without a `by` clause, statistics are computed across all events. |
-| `span(<field>, <interval>)` | No | Split a numeric or time field into buckets. Example: `span(age, 10)` creates 10-unit buckets; `span(time, 1h)` creates hourly buckets. |
+| `span(<field>, <interval>)` | No | Split a numeric or time field into buckets. Example: `span(durationInNanos, 1000000000)` creates 1-second buckets; `span(time, 1h)` creates hourly buckets. |
 
 ### Time units for span expressions
 
@@ -47,38 +47,39 @@ eventstats [bucket_nullable=<bool>] <function>... [by <by-clause>]
 
 ### Average, sum, and count by group
 
-Calculate aggregate statistics per gender and add them to every row:
+Calculate aggregate latency statistics per service and add them to every span:
 
 ```sql
-source = accounts
-| fields account_number, gender, age
-| eventstats avg(age), sum(age), count() by gender
-| sort account_number
+source = otel-v1-apm-span-*
+| eventstats avg(durationInNanos), sum(durationInNanos), count() by serviceName
+| fields serviceName, name, durationInNanos, `avg(durationInNanos)`, `sum(durationInNanos)`, `count()`
+| head 50
 ```
 
-Every row retains its original fields, plus new `avg(age)`, `sum(age)`, and `count()` columns with the group-level values.
+Every row retains its original fields, plus new aggregate columns with the group-level values.
 
 ### Count by span and group
 
-Count events within 5-year age buckets, grouped by gender:
+Count trace spans within 1-hour time buckets, grouped by service:
 
 ```sql
-source = accounts
-| fields account_number, gender, age
-| eventstats count() as cnt by span(age, 5) as age_span, gender
-| sort account_number
+source = otel-v1-apm-span-*
+| eventstats count() as cnt by span(startTime, 1h) as time_bucket, serviceName
+| fields startTime, serviceName, name, cnt
+| head 50
 ```
 
 ### Filter after enrichment
 
-Add the service-level average, then keep only events that deviate significantly:
+Add the service-level average latency, then keep only spans that deviate significantly:
 
 ```sql
-source = accounts
-| eventstats avg(age) as avg_age by gender
-| eval deviation = age - avg_age
-| where abs(deviation) > 5
-| fields account_number, gender, age, avg_age, deviation
+source = otel-v1-apm-span-*
+| eventstats avg(durationInNanos) as avg_duration by serviceName
+| eval deviation = durationInNanos - avg_duration
+| where abs(deviation) > avg_duration * 2
+| fields serviceName, name, durationInNanos, avg_duration, deviation
+| sort - deviation
 ```
 
 ### Null bucket handling
@@ -86,13 +87,13 @@ source = accounts
 Exclude `null` group-by values from aggregation:
 
 ```sql
-source = accounts
-| eventstats bucket_nullable=false count() as cnt by employer
-| fields account_number, firstname, employer, cnt
-| sort account_number
+source = otel-v1-apm-span-*
+| eventstats bucket_nullable=false count() as cnt by `status.code`
+| fields serviceName, name, `status.code`, cnt
+| head 50
 ```
 
-Rows where `employer` is `null` receive `null` for `cnt`.
+Rows where `status.code` is `null` receive `null` for `cnt`.
 
 ## Extended examples
 

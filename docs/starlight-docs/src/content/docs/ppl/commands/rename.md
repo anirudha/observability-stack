@@ -27,7 +27,7 @@ rename <source-field> AS <target-field> [, <source-field> AS <target-field>]...
 ## Usage notes
 
 - **Multiple renames** can be specified in a single command, separated by commas.
-- **Wildcard patterns** (`*`) match any sequence of characters. Both the source and target must have the same number of wildcards. For example, `*name` matches `firstname` and `lastname`, and renaming to `*_name` produces `first_name` and `last_name`.
+- **Wildcard patterns** (`*`) match any sequence of characters. Both the source and target must have the same number of wildcards. For example, `*Name` matches `serviceName` and `traceGroupName`, and renaming to `*_name` produces `service_name` and `traceGroup_name`.
 - **Renaming to an existing field** removes the original target field and replaces it with the source field's values.
 - **Renaming a non-existent field to an existing field** removes the target field from results.
 - **Renaming a non-existent field to a non-existent field** has no effect.
@@ -39,27 +39,30 @@ rename <source-field> AS <target-field> [, <source-field> AS <target-field>]...
 ### Rename a single field
 
 ```sql
-source = accounts
-| rename account_number as an
-| fields an
+source = otel-v1-apm-span-*
+| rename serviceName as service
+| fields service, name, durationInNanos
+| head 20
 ```
 
 ### Rename multiple fields
 
 ```sql
-source = accounts
-| rename account_number as an, employer as emp
-| fields an, emp
+source = otel-v1-apm-span-*
+| rename serviceName as service, durationInNanos as duration_ns
+| fields service, name, duration_ns
+| head 20
 ```
 
 ### Rename with wildcards
 
-Match all fields ending in `name` and add an underscore:
+Match all fields ending in `Name` and replace with `_name`:
 
 ```sql
-source = accounts
-| rename *name as *_name
-| fields first_name, last_name
+source = otel-v1-apm-service-map-*
+| rename *Name as *_name
+| fields service_name, traceGroup_name
+| head 20
 ```
 
 ### Multiple wildcard patterns
@@ -67,9 +70,10 @@ source = accounts
 Combine several wildcard renames in one command:
 
 ```sql
-source = accounts
-| rename *name as *_name, *_number as *number
-| fields first_name, last_name, accountnumber
+source = otel-v1-apm-span-*
+| rename *Name as *_name, *Id as *_id
+| fields service_name, trace_id, span_id, name
+| head 20
 ```
 
 ### Rename an existing field to another existing field
@@ -77,12 +81,13 @@ source = accounts
 The target field is replaced by the source field's values:
 
 ```sql
-source = accounts
-| rename firstname as age
-| fields age
+source = otel-v1-apm-span-*
+| rename serviceName as name
+| fields name, durationInNanos
+| head 20
 ```
 
-The `age` column now contains the original `firstname` values.
+The `name` column now contains the original `serviceName` values.
 
 ## Extended examples
 

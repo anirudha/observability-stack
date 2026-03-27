@@ -42,7 +42,7 @@ lookup <lookupIndex> (<lookupMappingField> [AS <sourceMappingField>])...
 ## Usage notes
 
 - **Use `lookup` instead of `join`** when enriching events from a small, static reference table. It avoids the overhead of a full join.
-- **`replace` overwrites existing values.** If the source data already has a `department` field and the lookup also provides `department`, the lookup value wins. Use `append` if you only want to fill gaps.
+- **`replace` overwrites existing values.** If the source data already has a `team` field and the lookup also provides `team`, the lookup value wins. Use `append` if you only want to fill gaps.
 - **`append` only fills nulls.** Non-null values in the source data are never overwritten. If the `outputField` does not already exist in the source and you use `append`, the operation fails. Use `replace` to create new fields.
 - **Multiple mapping fields** are supported. Separate them with commas to match on a composite key.
 - When `<inputField>` is omitted, **all fields** from the lookup index (except the mapping keys) are applied to the output.
@@ -51,22 +51,24 @@ lookup <lookupIndex> (<lookupMappingField> [AS <sourceMappingField>])...
 
 ### Basic lookup — replace values
 
-Enrich worker events with department information from a reference index:
+Enrich log events with team ownership from a `service_owners` reference index:
 
 ```sql
-source = worker
-| LOOKUP work_information uid AS id REPLACE department
-| fields id, name, occupation, country, salary, department
+source = logs-otel-v1*
+| eval service = `resource.attributes.service.name`
+| LOOKUP service_owners service_name AS service REPLACE team
+| fields time, body, severityText, service, team
 ```
 
 ### Append missing values only
 
-Fill in department where it is currently `null`, without overwriting existing values:
+Fill in `team` where it is currently `null`, without overwriting existing values:
 
 ```sql
-source = worker
-| LOOKUP work_information uid AS id APPEND department
-| fields id, name, occupation, country, salary, department
+source = logs-otel-v1*
+| eval service = `resource.attributes.service.name`
+| LOOKUP service_owners service_name AS service APPEND team
+| fields time, body, severityText, service, team
 ```
 
 ### Lookup without specifying input fields
@@ -74,9 +76,10 @@ source = worker
 When no `inputField` is specified, all non-key fields from the lookup index are applied:
 
 ```sql
-source = worker
-| LOOKUP work_information uid AS id, name
-| fields id, name, occupation, country, salary, department
+source = logs-otel-v1*
+| eval service = `resource.attributes.service.name`
+| LOOKUP service_owners service_name AS service
+| fields time, body, severityText, service, team, oncall, tier
 ```
 
 ### Map to a new output field
@@ -84,9 +87,9 @@ source = worker
 Place matched values into a new field using `AS`:
 
 ```sql
-source = worker
-| LOOKUP work_information name REPLACE occupation AS role
-| fields id, name, occupation, role
+source = otel-v1-apm-span-*
+| LOOKUP environments service_name AS serviceName REPLACE env AS deploy_env
+| fields serviceName, name, durationInNanos, deploy_env
 ```
 
 ### Using the OUTPUT keyword
@@ -94,9 +97,10 @@ source = worker
 `OUTPUT` is a synonym for `REPLACE` and produces identical results:
 
 ```sql
-source = worker
-| LOOKUP work_information uid AS id OUTPUT department
-| fields id, name, occupation, country, salary, department
+source = logs-otel-v1*
+| eval service = `resource.attributes.service.name`
+| LOOKUP service_owners service_name AS service OUTPUT team
+| fields time, body, severityText, service, team
 ```
 
 ## Extended examples

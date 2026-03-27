@@ -64,19 +64,19 @@ stats [bucket_nullable=<bool>] <aggregation> [, <aggregation>]... [by <span-expr
   | stats count() as total, avg(duration) as avg_dur, max(duration) as max_dur by service
   ```
 
-- **Naming output fields with `as`**: Without an alias, the column name is the function call itself (e.g. `avg(age)`). Always alias for readability.
+- **Naming output fields with `as`**: Without an alias, the column name is the function call itself (e.g. `avg(severityNumber)`). Always alias for readability.
 
 - **`count()` vs `count(field)`**: `count()` counts all events including those where a field is null. `count(field)` only counts events where `field` is non-null.
 
-- **Span intervals -- numeric**: `span(age, 10)` creates buckets of width 10 (20, 30, 40, ...).
+- **Span intervals -- numeric**: `span(severityNumber, 4)` creates buckets of width 4 (1, 5, 9, 13, ...).
 
-- **Span intervals -- time**: `span(timestamp, 1h)` creates hourly buckets. Valid time units: `ms` (millisecond), `s` (second), `m` (minute), `h` (hour), `d` (day), `w` (week), `M` (month), `q` (quarter), `y` (year).
+- **Span intervals -- time**: `span(time, 1h)` creates hourly buckets. Valid time units: `ms` (millisecond), `s` (second), `m` (minute), `h` (hour), `d` (day), `w` (week), `M` (month), `q` (quarter), `y` (year).
 
-- **Span is always the first grouping key**: Even if you write `by gender, span(age, 5)`, the span is promoted to the first position in the output.
+- **Span is always the first grouping key**: Even if you write `by severityText, span(time, 5m)`, the span is promoted to the first position in the output.
 
 - **Null handling in group-by**: By default, null values in group-by fields produce a null bucket. Set `bucket_nullable=false` to exclude null groups for cleaner output and faster performance.
 
-- **Eval expressions inside aggregations**: You can embed expressions directly, e.g. `sum(price * quantity)`.
+- **Eval expressions inside aggregations**: You can embed expressions directly, e.g. `sum(durationInNanos / 1000000)`.
 
 - **High-cardinality fields**: Aggregations over fields with many distinct values (like URLs or trace IDs) use approximate bucket counts. Results may be approximate for the long tail.
 
@@ -86,39 +86,39 @@ stats [bucket_nullable=<bool>] <aggregation> [, <aggregation>]... [by <span-expr
 
 ## Basic examples
 
-### Count all events
+### Count all log events
 
 ```sql
-source = accounts
+source = logs-otel-v1*
 | stats count()
 ```
 
-### Average by group
+### Average severity by service
 
 ```sql
-source = accounts
-| stats avg(age) by gender
+source = logs-otel-v1*
+| stats avg(severityNumber) by `resource.attributes.service.name`
 ```
 
 ### Multiple aggregations
 
 ```sql
-source = accounts
-| stats avg(age) as avg_age, sum(age) as total_age, count() as cnt by gender
+source = logs-otel-v1*
+| stats avg(severityNumber) as avg_severity, max(severityNumber) as max_severity, count() as cnt by `resource.attributes.service.name`
 ```
 
 ### Time bucketing with span
 
 ```sql
-source = accounts
-| stats count(age) by span(age, 10) as age_span
+source = logs-otel-v1*
+| stats count() as log_count by span(time, 10m) as time_bucket
 ```
 
 ### Percentile calculation
 
 ```sql
-source = accounts
-| stats percentile(age, 90) as p90 by gender
+source = otel-v1-apm-span-*
+| stats percentile(durationInNanos, 90) as p90 by serviceName
 ```
 
 ---

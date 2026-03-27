@@ -34,7 +34,7 @@ source=<index> [<boolean-expression>]
 ## Usage notes
 
 - **Always first**: `search` must be the first command in any PPL query. Exactly one `search` (or `source=`) is allowed per query.
-- **Omitting the keyword**: The `search` keyword is optional. Writing `source=accounts` is the most common form.
+- **Omitting the keyword**: The `search` keyword is optional. Writing `source=logs-otel-v1*` is the most common form.
 - **Discover UI queries**: When using PPL in Discover, the source index is set by the dataset selector. Your query starts with `|` followed by pipeline commands (e.g., `| where severityText = 'ERROR' | fields body`).
 - **Search expression vs. where**: The boolean expression in `search` is converted to an OpenSearch query string query and executes at the search layer. For more complex filtering with functions and eval expressions, use the [`where`](/docs/ppl/commands/where/) command after the pipe.
 - **Cross-cluster search**: To query an index on a remote cluster, prefix the index name with the cluster name and a colon. Cross-cluster search must be configured at the OpenSearch level.
@@ -50,7 +50,7 @@ source=<index> [<boolean-expression>]
 Fetch every document from an index with no filter. Useful for exploring data or verifying ingestion.
 
 ```sql
-source=accounts
+source=logs-otel-v1*
 ```
 
 ### Filter with a boolean expression
@@ -58,7 +58,7 @@ source=accounts
 Return only documents where `severityText` is `ERROR`:
 
 ```sql
-source=otellogs severityText="ERROR"
+source=logs-otel-v1* severityText="ERROR"
 ```
 
 ### Full-text search
@@ -66,7 +66,7 @@ source=otellogs severityText="ERROR"
 Search across all fields for documents containing the term `timeout`:
 
 ```sql
-search timeout source=otellogs
+search timeout source=logs-otel-v1*
 ```
 
 ### Multi-value match with IN
@@ -74,7 +74,7 @@ search timeout source=otellogs
 Match documents where `severityText` is one of several values:
 
 ```sql
-source=otellogs severityText IN ("ERROR", "WARN", "FATAL")
+source=logs-otel-v1* severityText IN ("ERROR", "WARN", "FATAL")
 ```
 
 ### Wildcard index pattern

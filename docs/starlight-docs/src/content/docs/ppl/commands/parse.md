@@ -39,73 +39,74 @@ parse <field> <regex-pattern>
 | Pattern | Matches |
 |---------|---------|
 | `(?<ip>\d+\.\d+\.\d+\.\d+)` | IPv4 addresses |
-| `(?<email>[^\s@]+@[^\s@]+\.[^\s@]+)` | Email addresses |
 | `(?<status>\d{3})` | HTTP status codes |
 | `(?<key>\w+)=(?<value>[^\s]+)` | Key-value pairs |
 | `(?<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})` | ISO timestamps |
+| `(?<method>GET\|POST\|PUT\|DELETE)` | HTTP methods |
+| `(?<path>/[^\s]+)` | URL paths |
 
 ## Basic examples
 
-### Extract hostname from email addresses
+### Extract HTTP method and path from log bodies
 
-Parse the hostname portion after the `@` symbol:
-
-```sql
-source = accounts
-| parse email '.+@(?<host>.+)'
-| fields email, host
-```
-
-| email | host |
-|-------|------|
-| amberduke@pyrami.com | pyrami.com |
-| hattiebond@netagy.com | netagy.com |
-| daleadams@boink.com | boink.com |
-
-<a href="https://observability.playground.opensearch.org/w/19jD-R/app/explore/logs/#/?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_q=(dataset:(id:d1f424b0-2655-11f1-8baa-d5b726b04d73,timeFieldName:time,title:'logs-otel-v1*',type:INDEX_PATTERN),language:PPL,query:'source%20%3D%20logs-otel-v1*%20%7C%20parse%20body%20%27.%2B%40(%3F%3Chost%3E.%2B)%27%20%7C%20fields%20body%2C%20host')&_a=(legacy:(columns:!(body,severityText,resource.attributes.service.name),interval:auto,isDirty:!f,sort:!()),tab:(logs:(),patterns:(usingRegexPatterns:!f)),ui:(activeTabId:logs,showHistogram:!t))" target="_blank" rel="noopener">Try in playground &rarr;</a>
-
-### Extract street number and name from addresses
-
-Split an address into its numeric and text components, then filter and sort:
+Parse the HTTP method and request path from log messages:
 
 ```sql
-source = accounts
-| parse address '(?<streetNumber>\d+) (?<street>.+)'
-| where cast(streetNumber as int) > 500
-| sort num(streetNumber)
-| fields streetNumber, street
+source = logs-otel-v1*
+| parse body '(?<method>GET|POST|PUT|DELETE|PATCH|HEAD) (?<path>/[^\s]+)'
+| fields body, method, path
 ```
 
-| streetNumber | street |
-|-------------|--------|
-| 671 | Bristol Street |
-| 789 | Madison Street |
-| 880 | Holmes Lane |
+| body | method | path |
+|------|--------|------|
+| GET /api/v1/agents HTTP/1.1 200 | GET | /api/v1/agents |
+| POST /api/v1/invoke HTTP/1.1 201 | POST | /api/v1/invoke |
+| DELETE /api/v1/sessions/abc123 HTTP/1.1 204 | DELETE | /api/v1/sessions/abc123 |
+
+<a href="https://observability.playground.opensearch.org/w/19jD-R/app/explore/logs/#/?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_q=(dataset:(id:d1f424b0-2655-11f1-8baa-d5b726b04d73,timeFieldName:time,title:'logs-otel-v1*',type:INDEX_PATTERN),language:PPL,query:'source%20%3D%20logs-otel-v1*%20%7C%20parse%20body%20%27(%3F%3Cmethod%3EGET%7CPOST%7CPUT%7CDELETE%7CPATCH%7CHEAD)%20(%3F%3Cpath%3E%2F%5B%5E%5Cs%5D%2B)%27%20%7C%20fields%20body%2C%20method%2C%20path')&_a=(legacy:(columns:!(body,severityText,resource.attributes.service.name),interval:auto,isDirty:!f,sort:!()),tab:(logs:(),patterns:(usingRegexPatterns:!f)),ui:(activeTabId:logs,showHistogram:!t))" target="_blank" rel="noopener">Try in playground &rarr;</a>
+
+### Extract IP address and status code from log lines
+
+Split a log body into its IP and status code components, then filter and sort:
+
+```sql
+source = logs-otel-v1*
+| parse body '(?<clientip>\d+\.\d+\.\d+\.\d+).*\s(?<status>\d{3})\s'
+| where cast(status as int) >= 400
+| sort status
+| fields clientip, status
+```
+
+| clientip | status |
+|----------|--------|
+| 10.0.1.55 | 400 |
+| 192.168.1.10 | 404 |
+| 172.16.0.42 | 500 |
 
 ### Override an existing field
 
-Replace the `address` field with only the street name by using the same field name in the capture group:
+Replace the `body` field with only the message portion after the timestamp by using the same field name in the capture group:
 
 ```sql
-source = accounts
-| parse address '\d+ (?<address>.+)'
-| fields address
+source = logs-otel-v1*
+| parse body '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\S*\s+(?<body>.+)'
+| fields body
 ```
 
-| address |
-|---------|
-| Holmes Lane |
-| Bristol Street |
-| Madison Street |
-| Hutchinson Court |
+| body |
+|------|
+| Connection refused to upstream service |
+| Request completed successfully |
+| Timeout waiting for response |
+| Agent invocation started |
 
-### Extract HTTP method and path from log lines
+### Extract request metrics from structured log bodies
 
 Parse structured log messages to pull out the HTTP method and request path:
 
 ```sql
-source = weblogs
-| parse message '"(?<method>GET|POST|PUT|DELETE|PATCH|HEAD) (?<path>[^\s]+) HTTP'
+source = logs-otel-v1*
+| parse body '"(?<method>GET|POST|PUT|DELETE|PATCH|HEAD) (?<path>[^\s]+) HTTP'
 | stats count() by method, path
 | sort - count()
 ```

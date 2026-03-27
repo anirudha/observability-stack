@@ -217,8 +217,6 @@ export default defineConfig({
 					label: 'Reference',
 					collapsed: true,
 					items: [
-						{ label: 'PPL Commands', link: '/ppl/commands/' },
-						{ label: 'PPL Functions', link: '/ppl/functions/' },
 						{ label: 'Python SDK', link: '/send-data/ai-agents/python/' },
 						{ label: 'TypeScript SDK', link: '/send-data/ai-agents/typescript/' },
 						{ label: 'MCP Server', link: '/mcp/' },

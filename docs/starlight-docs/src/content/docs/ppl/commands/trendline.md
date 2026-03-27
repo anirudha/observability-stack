@@ -51,22 +51,26 @@ WMA reacts faster to changes, making it better for detecting recent shifts. SMA 
 
 ## Examples
 
-### Simple moving average over 2 data points
+### Simple moving average over 5 data points
+
+Smooth span latency with a 5-point SMA:
 
 ```sql
-source = accounts
-| trendline sma(2, account_number) as an
-| fields an
+source = otel-v1-apm-span-*
+| trendline sort startTime sma(5, durationInNanos) as latency_trend
+| fields startTime, serviceName, durationInNanos, latency_trend
+| head 50
 ```
 
 ### Multiple trendlines in one command
 
-Compute both an account number trend and an age trend simultaneously:
+Compute both an SMA and WMA on latency simultaneously to compare smoothing behavior:
 
 ```sql
-source = accounts
-| trendline sma(2, account_number) as an sma(2, age) as age_trend
-| fields an, age_trend
+source = otel-v1-apm-span-*
+| trendline sort startTime sma(5, durationInNanos) as sma_latency wma(5, durationInNanos) as wma_latency
+| fields startTime, serviceName, sma_latency, wma_latency
+| head 50
 ```
 
 ### Default alias
@@ -74,9 +78,10 @@ source = accounts
 When no alias is specified, the output column is named `<field>_trendline`:
 
 ```sql
-source = accounts
-| trendline sma(2, account_number)
-| fields account_number_trendline
+source = otel-v1-apm-span-*
+| trendline sort startTime sma(5, durationInNanos)
+| fields startTime, serviceName, durationInNanos_trendline
+| head 50
 ```
 
 ### Weighted moving average
@@ -84,9 +89,10 @@ source = accounts
 WMA gives more weight to recent values, producing a trend that reacts faster:
 
 ```sql
-source = accounts
-| trendline wma(2, account_number)
-| fields account_number_trendline
+source = otel-v1-apm-span-*
+| trendline sort startTime wma(5, durationInNanos)
+| fields startTime, serviceName, durationInNanos_trendline
+| head 50
 ```
 
 ## Extended examples

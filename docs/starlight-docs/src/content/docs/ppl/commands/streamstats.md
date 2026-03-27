@@ -59,19 +59,25 @@ streamstats [bucket_nullable=<bool>] [current=<bool>] [window=<int>] [global=<bo
 ### Running average, sum, and count by group
 
 ```sql
-source = accounts
-| streamstats avg(age) as running_avg, sum(age) as running_sum, count() as running_count by gender
+source = otel-v1-apm-span-*
+| sort startTime
+| streamstats avg(durationInNanos) as running_avg, sum(durationInNanos) as running_sum, count() as running_count by serviceName
+| fields startTime, serviceName, name, durationInNanos, running_avg, running_sum, running_count
+| head 50
 ```
 
-Each row shows the running statistics computed from events seen so far within its gender group.
+Each row shows the running statistics computed from spans seen so far within its service group.
 
 ### Rolling maximum over a 2-row window
 
-Compute the maximum `age` from the previous 2 events (excluding the current event):
+Compute the maximum latency from the previous 2 spans (excluding the current span):
 
 ```sql
-source = state_country
-| streamstats current=false window=2 max(age) as prev_max_age
+source = otel-v1-apm-span-*
+| sort startTime
+| streamstats current=false window=2 max(durationInNanos) as prev_max_latency
+| fields startTime, serviceName, durationInNanos, prev_max_latency
+| head 50
 ```
 
 The first row has `null` because no previous events exist.
@@ -81,29 +87,38 @@ The first row has `null` because no previous events exist.
 With `global=true`, the window slides across all rows but aggregation respects the `by` group:
 
 ```sql
-source = state_country
-| streamstats window=2 global=true avg(age) as running_avg by country
+source = otel-v1-apm-span-*
+| sort startTime
+| streamstats window=5 global=true avg(durationInNanos) as running_avg by serviceName
+| fields startTime, serviceName, durationInNanos, running_avg
+| head 50
 ```
 
 With `global=false`, each `by` group gets its own independent window:
 
 ```sql
-source = state_country
-| streamstats window=2 global=false avg(age) as running_avg by country
+source = otel-v1-apm-span-*
+| sort startTime
+| streamstats window=5 global=false avg(durationInNanos) as running_avg by serviceName
+| fields startTime, serviceName, durationInNanos, running_avg
+| head 50
 ```
 
-The difference is visible when groups are interleaved. With `global=false`, each group's window only counts events from that group.
+The difference is visible when services are interleaved. With `global=false`, each service's window only counts spans from that service.
 
 ### Conditional reset
 
-Reset running statistics when the data crosses a threshold:
+Reset running statistics when latency crosses a threshold:
 
 ```sql
-source = state_country
-| streamstats current=false reset_before=age>34 reset_after=age<25 avg(age) as avg_age by country
+source = otel-v1-apm-span-*
+| sort startTime
+| streamstats current=false reset_before="(durationInNanos > 10000000000)" reset_after="(durationInNanos < 1000000)" avg(durationInNanos) as avg_latency by serviceName
+| fields startTime, serviceName, durationInNanos, avg_latency
+| head 50
 ```
 
-Statistics reset **before** processing any event with `age > 34`, and **after** processing any event with `age < 25`.
+Statistics reset **before** processing any span with latency above 10 seconds, and **after** processing any span with latency below 1 millisecond.
 
 ## Extended examples
 

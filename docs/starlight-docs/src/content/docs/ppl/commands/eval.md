@@ -34,7 +34,7 @@ eval <field> = <expression> [, <field> = <expression>]...
 
 - **Multiple assignments in a single `eval`**: Separate them with commas. This is more efficient than chaining multiple `eval` commands.
   ```sql
-  | eval duration_ms = duration / 1000000, status_label = if(status = 200, 'OK', 'Error')
+  | eval duration_ms = durationInNanos / 1000000, status_label = if(`status.code` = 0, 'OK', 'Error')
   ```
 
 - **Later assignments can reference earlier ones**: Within the same `eval`, a field defined on the left can be used by an expression on the right.
@@ -56,48 +56,48 @@ eval <field> = <expression> [, <field> = <expression>]...
 
 ## Basic examples
 
-### Arithmetic -- double a field value
+### Arithmetic -- convert nanoseconds to milliseconds
 
 ```sql
-source = accounts
-| eval doubleAge = age * 2
-| fields age, doubleAge
+source = otel-v1-apm-span-*
+| eval duration_ms = durationInNanos / 1000000
+| fields serviceName, name, duration_ms
 ```
 
 ### String concatenation
 
 ```sql
-source = accounts
-| eval greeting = 'Hello ' + firstname
-| fields firstname, greeting
+source = logs-otel-v1*
+| eval service_severity = `resource.attributes.service.name` + ' - ' + severityText
+| fields time, service_severity, body
 ```
 
 ### Conditional with `if()`
 
 ```sql
-source = accounts
-| eval age_group = if(age < 30, 'young', 'senior')
-| fields firstname, age, age_group
+source = logs-otel-v1*
+| eval is_error = if(severityText = 'ERROR', 'yes', 'no')
+| fields time, severityText, is_error, body
 ```
 
 ### Multi-way conditional with `case()`
 
 ```sql
-source = accounts
-| eval age_bracket = case(
-    age < 25, 'under 25',
-    age < 35, '25-34',
-    age < 45, '35-44'
-    else '45+')
-| fields firstname, age, age_bracket
+source = otel-v1-apm-span-*
+| eval latency_tier = case(
+    durationInNanos < 100000000, 'fast',
+    durationInNanos < 500000000, 'moderate',
+    durationInNanos < 1000000000, 'slow'
+    else 'critical')
+| fields serviceName, name, latency_tier
 ```
 
 ### Type casting with string concatenation
 
 ```sql
-source = accounts
-| eval full_info = 'Name: ' + firstname + ', Age: ' + CAST(age AS STRING)
-| fields firstname, age, full_info
+source = otel-v1-apm-span-*
+| eval span_info = 'Service: ' + serviceName + ', Duration (ns): ' + CAST(durationInNanos AS STRING)
+| fields serviceName, span_info
 ```
 
 ---

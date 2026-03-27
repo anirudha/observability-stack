@@ -42,96 +42,93 @@ grok <field> <grok-pattern>
 | `%{GREEDYDATA:msg}` | Everything (greedy match) | any remaining text |
 | `%{HTTPDATE:ts}` | Common log format timestamp | `28/Sep/2022:10:15:57 -0700` |
 | `%{IPORHOST:server}` | IP address or hostname | `10.0.0.1` or `web01` |
-| `%{COMMONAPACHELOG}` | Full Apache common log line | entire access log entry |
-| `%{COMBINEDAPACHELOG}` | Apache combined log line | access log with referrer and user agent |
 | `%{SYSLOGLINE}` | Syslog format line | standard syslog entry |
-| `%{EMAILADDRESS:email}` | Email address | `user@example.com` |
 | `%{URI:url}` | Full URI | `https://example.com/path?q=1` |
-| `%{URIPATH:path}` | URI path component | `/api/v1/users` |
+| `%{URIPATH:path}` | URI path component | `/api/v1/agents` |
 | `%{POSINT:code}` | Positive integer | `200`, `404` |
 | `%{DATA:val}` | Non-greedy match (minimal) | short text segments |
 
 ## Basic examples
 
-### Extract hostname from email addresses
+### Extract client IP and status code from log bodies
 
-Use the `%{HOSTNAME}` pattern to capture the domain portion of an email:
+Use the `%{IP}` and `%{POSINT}` patterns to capture the client address and HTTP response code:
 
 ```sql
-source = accounts
-| grok email '.+@%{HOSTNAME:host}'
-| fields email, host
+source = logs-otel-v1*
+| grok body '%{IP:clientip} .* %{POSINT:status}'
+| fields body, clientip, status
 ```
 
-| email | host |
-|-------|------|
-| amberduke@pyrami.com | pyrami.com |
-| hattiebond@netagy.com | netagy.com |
-| daleadams@boink.com | boink.com |
+| body | clientip | status |
+|------|----------|--------|
+| 10.0.1.55 - - [27/Mar/2026:10:15:32 +0000] "GET /api/v1/agents HTTP/1.1" 200 1234 | 10.0.1.55 | 200 |
+| 192.168.1.10 - - [27/Mar/2026:10:15:33 +0000] "POST /api/v1/invoke HTTP/1.1" 404 567 | 192.168.1.10 | 404 |
+| 172.16.0.42 - - [27/Mar/2026:10:15:34 +0000] "GET /health HTTP/1.1" 500 89 | 172.16.0.42 | 500 |
 
-<a href="https://observability.playground.opensearch.org/w/19jD-R/app/explore/logs/#/?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_q=(dataset:(id:d1f424b0-2655-11f1-8baa-d5b726b04d73,timeFieldName:time,title:'logs-otel-v1*',type:INDEX_PATTERN),language:PPL,query:'source%20%3D%20logs-otel-v1*%20%7C%20grok%20body%20%27.%2B%40%25%7BHOSTNAME%3Ahost%7D%27%20%7C%20fields%20body%2C%20host')&_a=(legacy:(columns:!(body,severityText,resource.attributes.service.name),interval:auto,isDirty:!f,sort:!()),tab:(logs:(),patterns:(usingRegexPatterns:!f)),ui:(activeTabId:logs,showHistogram:!t))" target="_blank" rel="noopener">Try in playground &rarr;</a>
+<a href="https://observability.playground.opensearch.org/w/19jD-R/app/explore/logs/#/?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_q=(dataset:(id:d1f424b0-2655-11f1-8baa-d5b726b04d73,timeFieldName:time,title:'logs-otel-v1*',type:INDEX_PATTERN),language:PPL,query:'source%20%3D%20logs-otel-v1*%20%7C%20grok%20body%20%27%25%7BIP%3Aclientip%7D%20.*%20%25%7BPOSINT%3Astatus%7D%27%20%7C%20fields%20body%2C%20clientip%2C%20status')&_a=(legacy:(columns:!(body,severityText,resource.attributes.service.name),interval:auto,isDirty:!f,sort:!()),tab:(logs:(),patterns:(usingRegexPatterns:!f)),ui:(activeTabId:logs,showHistogram:!t))" target="_blank" rel="noopener">Try in playground &rarr;</a>
 
 ### Override an existing field
 
-Strip the street number from an address field, keeping only the street name:
+Strip the timestamp prefix from a log body, keeping only the message content:
 
 ```sql
-source = accounts
-| grok address '%{NUMBER} %{GREEDYDATA:address}'
-| fields address
+source = logs-otel-v1*
+| grok body '%{TIMESTAMP_ISO8601} %{GREEDYDATA:body}'
+| fields body
 ```
 
-| address |
-|---------|
-| Holmes Lane |
-| Bristol Street |
-| Madison Street |
-| Hutchinson Court |
+| body |
+|------|
+| Connection refused to upstream service |
+| Agent invocation completed in 245ms |
+| Request processed successfully |
+| Timeout waiting for response from model provider |
 
-### Parse Apache-style log lines
+### Parse HTTP access log lines from log bodies
 
-Use the built-in `%{COMMONAPACHELOG}` pattern to parse an entire access log entry in one step:
+Use multiple grok patterns to extract structured fields from HTTP access log entries in log bodies:
 
 ```sql
-source = apache
-| grok message '%{COMMONAPACHELOG}'
-| fields COMMONAPACHELOG, timestamp, response, bytes
+source = logs-otel-v1*
+| grok body '%{IP:clientip} %{DATA} %{DATA} \[%{HTTPDATE:timestamp}\] "%{WORD:method} %{URIPATH:path} HTTP/%{NUMBER:version}" %{POSINT:status} %{NUMBER:bytes}'
+| fields timestamp, method, path, status, bytes
 ```
 
-| timestamp | response | bytes |
-|-----------|----------|-------|
-| 28/Sep/2022:10:15:57 -0700 | 404 | 19927 |
-| 28/Sep/2022:10:15:57 -0700 | 100 | 28722 |
-| 28/Sep/2022:10:15:57 -0700 | 401 | 27439 |
-| 28/Sep/2022:10:15:57 -0700 | 301 | 9481 |
+| timestamp | method | path | status | bytes |
+|-----------|--------|------|--------|-------|
+| 27/Mar/2026:10:15:57 -0700 | GET | /api/v1/agents | 404 | 19927 |
+| 27/Mar/2026:10:15:57 -0700 | POST | /api/v1/invoke | 200 | 28722 |
+| 27/Mar/2026:10:15:57 -0700 | GET | /health | 401 | 27439 |
+| 27/Mar/2026:10:15:57 -0700 | DELETE | /api/v1/sessions | 301 | 9481 |
 
-### Extract IP address and response code from logs
+### Extract IP address and response code with aggregation
 
-Combine multiple grok patterns to parse custom log formats:
+Combine multiple grok patterns to parse log formats and aggregate results:
 
 ```sql
-source = weblogs
-| grok message '%{IP:client_ip} .* %{POSINT:status} %{NUMBER:bytes}'
+source = logs-otel-v1*
+| grok body '%{IP:clientip} .* %{POSINT:status} %{NUMBER:bytes}'
 | stats count() as requests, sum(cast(bytes as long)) as total_bytes by status
 | sort - requests
 ```
 
-### Extract numbers and descriptive data
+### Extract duration and service info from structured logs
 
-Mix grok patterns with literal text to parse structured output:
+Mix grok patterns with literal text to parse structured log output:
 
 ```sql
-source = accounts
-| grok address '%{NUMBER:street_num} %{GREEDYDATA:street_name}'
-| where cast(street_num as int) > 500
-| fields street_num, street_name
+source = logs-otel-v1*
+| grok body 'duration=%{NUMBER:duration}ms service=%{HOSTNAME:service}'
+| where cast(duration as int) > 500
+| fields duration, service
 ```
 
-| street_num | street_name |
-|------------|-------------|
-| 671 | Bristol Street |
-| 789 | Madison Street |
-| 880 | Holmes Lane |
+| duration | service |
+|----------|---------|
+| 671 | agent-orchestrator |
+| 789 | model-gateway |
+| 880 | tool-executor |
 
 ## Extended examples
 
@@ -157,14 +154,14 @@ Parse HTTP access patterns from log bodies that contain request information:
 
 ```sql
 source = logs-otel-v1*
-| grok body '%{IP:client_ip}.*"%{WORD:method} %{URIPATH:path} HTTP/%{NUMBER:version}" %{POSINT:status}'
-| where isnotnull(client_ip)
+| grok body '%{IP:clientip}.*"%{WORD:method} %{URIPATH:path} HTTP/%{NUMBER:version}" %{POSINT:status}'
+| where isnotnull(clientip)
 | stats count() as requests by method, status
 | sort - requests
 ```
 
 <Aside type="tip">
-When grok patterns become very long, consider whether `parse` with a targeted regex might be simpler. Grok excels at parsing well-known formats (Apache logs, syslog, etc.); for ad-hoc extraction of one or two fields, `parse` or `rex` may be more concise.
+When grok patterns become very long, consider whether `parse` with a targeted regex might be simpler. Grok excels at parsing well-known formats (HTTP access logs, syslog, etc.); for ad-hoc extraction of one or two fields, `parse` or `rex` may be more concise.
 </Aside>
 
 ## See also

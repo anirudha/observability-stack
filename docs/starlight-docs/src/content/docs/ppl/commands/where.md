@@ -47,76 +47,76 @@ where <boolean-expression>
 
 ### Simple comparison
 
-Return accounts with a balance greater than 30,000:
+Return log entries with a severity number greater than 9 (above DEBUG level):
 
 ```sql
-source=accounts
-| where balance > 30000
-| fields account_number, balance
+source=logs-otel-v1*
+| where severityNumber > 9
+| fields time, body, severityText
 ```
 
 ### Combine conditions with AND / OR
 
-Return male accounts older than 30:
+Return error logs from a specific service:
 
 ```sql
-source=accounts
-| where age > 30 AND gender = 'M'
-| fields account_number, age, gender
+source=logs-otel-v1*
+| where severityText = 'ERROR' AND `resource.attributes.service.name` = 'cart-service'
+| fields time, body, `resource.attributes.service.name`
 ```
 
-Return accounts where the account number is 1 or gender is female:
+Return logs that are either errors or from the payment service:
 
 ```sql
-source=accounts
-| where account_number = 1 OR gender = 'F'
-| fields account_number, gender
+source=logs-otel-v1*
+| where severityText = 'ERROR' OR `resource.attributes.service.name` = 'payment-service'
+| fields time, body, severityText, `resource.attributes.service.name`
 ```
 
 ### Pattern matching with LIKE
 
-Find states starting with `V`:
+Find logs whose body contains the word `connection`:
 
 ```sql
-source=accounts
-| where LIKE(state, 'V%')
-| fields account_number, state
+source=logs-otel-v1*
+| where LIKE(body, '%connection%')
+| fields time, body, severityText
 ```
 
-Find two-letter states starting with `M`:
+Find service names starting with `cart-` followed by exactly one character:
 
 ```sql
-source=accounts
-| where LIKE(state, 'M_')
-| fields account_number, state
+source=logs-otel-v1*
+| where LIKE(`resource.attributes.service.name`, 'cart-_')
+| fields time, body, `resource.attributes.service.name`
 ```
 
 ### Set membership with IN
 
-Return accounts in specific states:
+Return logs matching specific severity levels:
 
 ```sql
-source=accounts
-| where state IN ('IL', 'VA')
-| fields account_number, state
+source=logs-otel-v1*
+| where severityText IN ('ERROR', 'WARN', 'FATAL')
+| fields time, body, severityText, `resource.attributes.service.name`
 ```
 
 ### Null testing
 
-Find records where a field is null:
+Find log entries where the trace ID is missing (logs not correlated to a trace):
 
 ```sql
-source=accounts
-| where ISNULL(employer)
-| fields account_number, employer
+source=logs-otel-v1*
+| where ISNULL(traceId)
+| fields time, body, severityText
 ```
 
-Find records where a field has a value:
+Find log entries that have a span ID (logs correlated to a specific span):
 
 ```sql
-source=accounts
-| where ISNOTNULL(email)
-| fields account_number, email
+source=logs-otel-v1*
+| where ISNOTNULL(spanId)
+| fields time, body, traceId, spanId
 ```
 
 ### Grouped conditions
@@ -124,9 +124,9 @@ source=accounts
 Combine multiple conditions with parentheses to control evaluation order:
 
 ```sql
-source=accounts
-| where (balance > 40000 OR age > 35) AND gender = 'M'
-| fields account_number, balance, age, gender
+source=logs-otel-v1*
+| where (severityText = 'ERROR' OR severityText = 'FATAL') AND `resource.attributes.service.name` = 'cart-service'
+| fields time, body, severityText, `resource.attributes.service.name`
 ```
 
 ## Extended examples

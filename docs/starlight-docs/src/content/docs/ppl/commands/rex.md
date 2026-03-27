@@ -59,88 +59,88 @@ Backreferences (`\1`, `\2`, etc.) are supported in the replacement string.
 
 ## Basic examples
 
-### Extract username and domain from email
+### Extract HTTP method and path from log bodies
 
-Use two named capture groups to split an email address:
+Use two named capture groups to split an HTTP request line from a log body:
 
 ```sql
-source = accounts
-| rex field=email "(?<username>[^@]+)@(?<domain>[^.]+)"
-| fields email, username, domain
+source = logs-otel-v1*
+| rex field=body "(?<method>GET|POST|PUT|DELETE|PATCH)\s+(?<path>/[^\s]+)"
+| fields body, method, path
 | head 2
 ```
 
-| email | username | domain |
-|-------|----------|--------|
-| amberduke@pyrami.com | amberduke | pyrami |
-| hattiebond@netagy.com | hattiebond | netagy |
+| body | method | path |
+|------|--------|------|
+| GET /api/v1/agents HTTP/1.1 200 1234 | GET | /api/v1/agents |
+| POST /api/v1/invoke HTTP/1.1 201 567 | POST | /api/v1/invoke |
 
-<a href="https://observability.playground.opensearch.org/w/19jD-R/app/explore/logs/#/?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_q=(dataset:(id:d1f424b0-2655-11f1-8baa-d5b726b04d73,timeFieldName:time,title:'logs-otel-v1*',type:INDEX_PATTERN),language:PPL,query:'source%20%3D%20logs-otel-v1*%20%7C%20rex%20field%3Dbody%20%22(%3F%3Cusername%3E%5B%5E%40%5D%2B)%40(%3F%3Cdomain%3E%5B%5E.%5D%2B)%22%20%7C%20fields%20body%2C%20username%2C%20domain%20%7C%20head%202')&_a=(legacy:(columns:!(body,severityText,resource.attributes.service.name),interval:auto,isDirty:!f,sort:!()),tab:(logs:(),patterns:(usingRegexPatterns:!f)),ui:(activeTabId:logs,showHistogram:!t))" target="_blank" rel="noopener">Try in playground &rarr;</a>
+<a href="https://observability.playground.opensearch.org/w/19jD-R/app/explore/logs/#/?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_q=(dataset:(id:d1f424b0-2655-11f1-8baa-d5b726b04d73,timeFieldName:time,title:'logs-otel-v1*',type:INDEX_PATTERN),language:PPL,query:'source%20%3D%20logs-otel-v1*%20%7C%20rex%20field%3Dbody%20%22(%3F%3Cmethod%3EGET%7CPOST%7CPUT%7CDELETE%7CPATCH)%5Cs%2B(%3F%3Cpath%3E%2F%5B%5E%5Cs%5D%2B)%22%20%7C%20fields%20body%2C%20method%2C%20path%20%7C%20head%202')&_a=(legacy:(columns:!(body,severityText,resource.attributes.service.name),interval:auto,isDirty:!f,sort:!()),tab:(logs:(),patterns:(usingRegexPatterns:!f)),ui:(activeTabId:logs,showHistogram:!t))" target="_blank" rel="noopener">Try in playground &rarr;</a>
 
 ### Replace text using sed mode
 
-Mask email domains by substituting everything after `@`:
+Mask IP addresses in log bodies by substituting them with a placeholder:
 
 ```sql
-source = accounts
-| rex field=email mode=sed "s/@.*/@company.com/"
-| fields email
+source = logs-otel-v1*
+| rex field=body mode=sed "s/\d+\.\d+\.\d+\.\d+/[REDACTED]/g"
+| fields body
 | head 2
 ```
 
-| email |
-|-------|
-| amberduke@company.com |
-| hattiebond@company.com |
+| body |
+|------|
+| [REDACTED] - - [27/Mar/2026:10:15:32 +0000] "GET /api/v1/agents HTTP/1.1" 200 |
+| [REDACTED] - - [27/Mar/2026:10:15:33 +0000] "POST /api/v1/invoke HTTP/1.1" 404 |
 
-### Extract multiple words with max_match
+### Extract multiple key-value pairs with max_match
 
-Pull out multiple words from an address field as an array:
+Pull out multiple `key=value` pairs from a structured log body as an array:
 
 ```sql
-source = accounts
-| rex field=address "(?<words>[A-Za-z]+)" max_match=2
-| fields address, words
+source = logs-otel-v1*
+| rex field=body "(?<kvpair>\w+=[^\s,]+)" max_match=3
+| fields body, kvpair
 | head 3
 ```
 
-| address | words |
-|---------|-------|
-| 880 Holmes Lane | [Holmes,Lane] |
-| 671 Bristol Street | [Bristol,Street] |
-| 789 Madison Street | [Madison,Street] |
+| body | kvpair |
+|------|--------|
+| status=200 duration=45ms service=agent-orchestrator | [status=200,duration=45ms,service=agent-orchestrator] |
+| status=500 duration=1200ms service=model-gateway | [status=500,duration=1200ms,service=model-gateway] |
+| status=404 duration=12ms service=tool-executor | [status=404,duration=12ms,service=tool-executor] |
 
 ### Track match positions with offset_field
 
 Record where each capture group matched within the source string:
 
 ```sql
-source = accounts
-| rex field=email "(?<username>[^@]+)@(?<domain>[^.]+)" offset_field=matchpos
-| fields email, username, domain, matchpos
+source = logs-otel-v1*
+| rex field=body "(?<method>GET|POST|PUT|DELETE).*(?<status>\d{3})" offset_field=matchpos
+| fields body, method, status, matchpos
 | head 2
 ```
 
-| email | username | domain | matchpos |
-|-------|----------|--------|----------|
-| amberduke@pyrami.com | amberduke | pyrami | domain=10-15&username=0-8 |
-| hattiebond@netagy.com | hattiebond | netagy | domain=11-16&username=0-9 |
+| body | method | status | matchpos |
+|------|--------|--------|----------|
+| GET /api/v1/agents HTTP/1.1 200 1234 | GET | 200 | method=0-2&status=29-31 |
+| POST /api/v1/invoke HTTP/1.1 404 567 | POST | 404 | method=0-3&status=30-32 |
 
-### Extract full email components
+### Extract service name and duration from structured logs
 
-Capture user, domain, and top-level domain in a single pattern:
+Capture the service name and response duration in a single pattern:
 
 ```sql
-source = accounts
-| rex field=email "(?<user>[a-zA-Z0-9._%+-]+)@(?<domain>[a-zA-Z0-9.-]+)\\.(?<tld>[a-zA-Z]{2,})"
-| fields email, user, domain, tld
+source = logs-otel-v1*
+| rex field=body "service=(?<service>[^\s,]+).*duration=(?<duration>\d+)ms"
+| fields body, service, duration
 | head 2
 ```
 
-| email | user | domain | tld |
-|-------|------|--------|-----|
-| amberduke@pyrami.com | amberduke | pyrami | com |
-| hattiebond@netagy.com | hattiebond | netagy | com |
+| body | service | duration |
+|------|---------|----------|
+| service=agent-orchestrator request=invoke duration=245ms status=200 | agent-orchestrator | 245 |
+| service=model-gateway request=chat duration=1802ms status=200 | model-gateway | 1802 |
 
 ## Extended examples
 
@@ -166,21 +166,22 @@ This extracts HTTP method, path, and status code from log bodies, then calculate
 
 ### Chain rex commands to extract from multiple fields
 
-Extract initials from separate name fields in a single query:
+Extract the first character of the severity text and the service name prefix in a single query:
 
 ```sql
-source = accounts
-| rex field=firstname "(?<firstinitial>^.)"
-| rex field=lastname "(?<lastinitial>^.)"
-| fields firstname, lastname, firstinitial, lastinitial
+source = logs-otel-v1*
+| rex field=severityText "(?<severitychar>^.)"
+| rex field=body "service=(?<service>[^\s,]+)"
+| where isnotnull(service)
+| fields severityText, body, severitychar, service
 | head 3
 ```
 
-| firstname | lastname | firstinitial | lastinitial |
-|-----------|----------|-------------|-------------|
-| Amber | Duke | A | D |
-| Hattie | Bond | H | B |
-| Nanette | Bates | N | B |
+| severityText | body | severitychar | service |
+|-------------|------|-------------|---------|
+| ERROR | service=agent-orchestrator error=timeout | E | agent-orchestrator |
+| WARN | service=model-gateway retries=3 | W | model-gateway |
+| INFO | service=tool-executor status=completed | I | tool-executor |
 
 <Aside type="caution">
 Capture group names **cannot contain underscores**. Use `(?<username>...)` instead of `(?<user_name>...)`. This is a Java regex limitation.

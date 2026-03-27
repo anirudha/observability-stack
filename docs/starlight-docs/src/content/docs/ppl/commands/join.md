@@ -76,54 +76,64 @@ join [type=<joinType>] [overwrite=<bool>] [max=<n>] (<join-field-list> | [left =
 
 ### Join two indexes
 
+Correlate log entries with trace spans using `traceId` to see which spans produced each log line:
+
 ```sql
-source = state_country
-| inner join left=a right=b ON a.name = b.name occupation
-| stats avg(salary) by span(age, 10) as age_span, b.country
+source = logs-otel-v1*
+| inner join left=l right=r ON l.traceId = r.traceId otel-v1-apm-span-*
+| fields l.time, l.body, l.severityText, r.serviceName, r.name, r.durationInNanos
 ```
 
 ### Join with a subsearch
 
+Join logs with a filtered subset of trace spans — only slow spans above a latency threshold:
+
 ```sql
-source = state_country as a
-| where country = 'USA' OR country = 'England'
-| left join ON a.name = b.name [
-    source = occupation
-    | where salary > 0
-    | fields name, country, salary
-    | sort salary
-    | head 3
-  ] as b
-| stats avg(salary) by span(age, 10) as age_span, b.country
+source = logs-otel-v1* as l
+| where severityText = 'ERROR'
+| left join ON l.traceId = r.traceId [
+    source = otel-v1-apm-span-*
+    | where durationInNanos > 5000000000
+    | fields traceId, serviceName, name, durationInNanos
+    | sort - durationInNanos
+    | head 100
+  ] as r
+| fields l.time, l.body, l.severityText, r.serviceName, r.name, r.durationInNanos
 ```
 
 ### Join using a field list (extended syntax)
 
+Join logs with trace spans on the shared `traceId` field using the field-list shorthand:
+
 ```sql
-source = state_country
-| where country = 'USA' OR country = 'England'
-| join type=left overwrite=true name [
-    source = occupation
-    | where salary > 0
-    | fields name, country, salary
-    | sort salary
-    | head 3
+source = logs-otel-v1*
+| where severityText = 'ERROR'
+| join type=left overwrite=true traceId [
+    source = otel-v1-apm-span-*
+    | where durationInNanos > 1000000000
+    | fields traceId, serviceName, name, durationInNanos
+    | sort - durationInNanos
+    | head 100
   ]
-| stats avg(salary) by span(age, 10) as age_span, country
+| fields time, body, severityText, serviceName, name, durationInNanos
 ```
 
-### Semi join — find events with matches
+### Semi join — find logs with matching spans
+
+Return only log events that have at least one matching trace span:
 
 ```sql
-source = state_country
-| left semi join left=a right=b on a.name = b.name occupation
+source = logs-otel-v1*
+| left semi join left=l right=r on l.traceId = r.traceId otel-v1-apm-span-*
 ```
 
-### Anti join — find events without matches
+### Anti join — find orphaned logs without spans
+
+Return log events that have no matching trace span — useful for finding gaps in instrumentation:
 
 ```sql
-source = state_country
-| left anti join left=a right=b on a.name = b.name occupation
+source = logs-otel-v1*
+| left anti join left=l right=r on l.traceId = r.traceId otel-v1-apm-span-*
 ```
 
 ## Extended examples

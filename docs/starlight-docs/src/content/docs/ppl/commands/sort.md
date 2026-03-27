@@ -46,17 +46,17 @@ sort [<count>] <field> [asc|desc|a|d] [, <field> [asc|desc|a|d]]...
 
 - **Type-specific sort functions**: Control how field values are compared:
   - `auto(field)` -- automatic type detection (default behavior).
-  - `str(field)` -- sort as strings (lexicographic). Useful for sorting numeric fields as text (e.g. `str(account_number)` makes `"13"` come before `"6"`).
+  - `str(field)` -- sort as strings (lexicographic). Useful for sorting numeric fields as text (e.g. `str(severityNumber)` makes `"17"` come before `"9"`).
   - `num(field)` -- sort as numbers.
   - `ip(field)` -- sort as IP addresses.
 
-- **Count parameter for top-N queries**: `sort 10 - duration` returns only the 10 events with the highest duration. This is more efficient than `sort - duration | head 10` because it can optimize internally.
+- **Count parameter for top-N queries**: `sort 10 - durationInNanos` returns only the 10 spans with the highest duration. This is more efficient than `sort - durationInNanos | head 10` because it can optimize internally.
 
 - **Multi-field sorting**: Fields are evaluated left to right. If two records tie on the first field, the second field breaks the tie, and so on.
 
 - **Performance**: Sorting large result sets is memory-intensive because all matching documents must be held and compared. For large datasets, combine `sort` with `stats` aggregation or use `head` to limit results. Sorting after `stats` (which typically produces fewer rows) is much cheaper than sorting raw events.
 
-- **Do not mix notations**: Use either prefix or suffix notation within a single `sort` command -- mixing `- age, name desc` in one command is not supported.
+- **Do not mix notations**: Use either prefix or suffix notation within a single `sort` command -- mixing `- severityNumber, serviceName desc` in one command is not supported.
 
 ---
 
@@ -65,55 +65,55 @@ sort [<count>] <field> [asc|desc|a|d] [, <field> [asc|desc|a|d]]...
 ### Sort ascending (default)
 
 ```sql
-source = accounts
-| sort age
-| fields account_number, age
+source = logs-otel-v1*
+| sort severityNumber
+| fields time, severityText, severityNumber, body
 ```
 
 ### Sort descending with prefix notation
 
 ```sql
-source = accounts
-| sort - age
-| fields account_number, age
+source = logs-otel-v1*
+| sort - severityNumber
+| fields time, severityText, severityNumber, body
 ```
 
 ### Multi-field sort
 
-Sort by gender ascending, then by age descending:
+Sort by service name ascending, then by severity descending:
 
 ```sql
-source = accounts
-| sort + gender, - age
-| fields account_number, gender, age
+source = logs-otel-v1*
+| sort + `resource.attributes.service.name`, - severityNumber
+| fields `resource.attributes.service.name`, severityNumber, body
 ```
 
 This is equivalent in suffix notation:
 
 ```sql
-source = accounts
-| sort gender asc, age desc
-| fields account_number, gender, age
+source = logs-otel-v1*
+| sort `resource.attributes.service.name` asc, severityNumber desc
+| fields `resource.attributes.service.name`, severityNumber, body
 ```
 
 ### Limit results with count
 
-Return only the two youngest accounts:
+Return only the 2 most recent log entries:
 
 ```sql
-source = accounts
-| sort 2 age
-| fields account_number, age
+source = logs-otel-v1*
+| sort 2 - time
+| fields time, severityText, body
 ```
 
 ### Lexicographic sort with `str()`
 
-Sort numeric field as strings (lexicographic order):
+Sort numeric severity as strings (lexicographic order):
 
 ```sql
-source = accounts
-| sort str(account_number)
-| fields account_number
+source = logs-otel-v1*
+| sort str(severityNumber)
+| fields severityNumber, severityText
 ```
 
 ---

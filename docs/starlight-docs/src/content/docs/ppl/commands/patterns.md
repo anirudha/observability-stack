@@ -70,7 +70,7 @@ patterns <field> [by <byClause>]
 - In **label mode**, each event gets an additional `patterns_field` column showing its pattern. Use this to visually identify similar log lines.
 - In **aggregation mode**, the output contains one row per unique pattern with `pattern_count` and `sample_logs` columns. This is ideal for understanding log composition at a glance.
 - The **brain method** is better at identifying which parts of a log message are variable vs. static. It produces more meaningful groupings than `simple_pattern`, especially for complex log formats.
-- The `by` clause lets you discover patterns per group (e.g., per service, per host).
+- The `by` clause lets you discover patterns per group (e.g., per service, per severity level).
 - Default cluster settings for `patterns` can be overridden with cluster settings prefixed `plugins.ppl.pattern.*`.
 
 ### When to use patterns
@@ -87,19 +87,19 @@ patterns <field> [by <byClause>]
 
 ### Simple pattern discovery (label mode)
 
-Add a pattern label to each email field:
+Add a pattern label to each log body:
 
 ```sql
-source = accounts
-| patterns email method=simple_pattern
-| fields email, patterns_field
+source = logs-otel-v1*
+| patterns body method=simple_pattern
+| fields body, patterns_field
 ```
 
-| email | patterns_field |
-|-------|----------------|
-| amberduke@pyrami.com | \<*\>@\<*\>.\<*\> |
-| hattiebond@netagy.com | \<*\>@\<*\>.\<*\> |
-| daleadams@boink.com | \<*\>@\<*\>.\<*\> |
+| body | patterns_field |
+|------|----------------|
+| 10.0.1.55 - GET /api/v1/agents 200 1234ms | \<*\>.\<*\>.\<*\>.\<*\> - \<*\> /\<*\>/\<*\>/\<*\> \<*\> \<*\>\<*\> |
+| 192.168.1.10 - POST /api/v1/invoke 201 567ms | \<*\>.\<*\>.\<*\>.\<*\> - \<*\> /\<*\>/\<*\>/\<*\> \<*\> \<*\>\<*\> |
+| 172.16.0.42 - GET /health 200 12ms | \<*\>.\<*\>.\<*\>.\<*\> - \<*\> /\<*\> \<*\> \<*\>\<*\> |
 
 <a href="https://observability.playground.opensearch.org/w/19jD-R/app/explore/logs/#/?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_q=(dataset:(id:d1f424b0-2655-11f1-8baa-d5b726b04d73,timeFieldName:time,title:'logs-otel-v1*',type:INDEX_PATTERN),language:PPL,query:'source%20%3D%20logs-otel-v1*%20%7C%20patterns%20body%20method%3Dsimple_pattern%20%7C%20fields%20body%2C%20patterns_field')&_a=(legacy:(columns:!(body,severityText,resource.attributes.service.name),interval:auto,isDirty:!f,sort:!()),tab:(logs:(),patterns:(usingRegexPatterns:!f)),ui:(activeTabId:logs,showHistogram:!t))" target="_blank" rel="noopener">Try in playground &rarr;</a>
 
@@ -108,8 +108,8 @@ source = accounts
 Count how many log entries match each pattern:
 
 ```sql
-source = apache
-| patterns message method=simple_pattern mode=aggregation
+source = logs-otel-v1*
+| patterns body method=simple_pattern mode=aggregation
 | fields patterns_field, pattern_count, sample_logs
 ```
 
@@ -120,15 +120,15 @@ This returns one row per unique pattern with the count and up to 10 sample log l
 The brain method preserves more semantic meaning than simple_pattern:
 
 ```sql
-source = apache
-| patterns message method=brain
-| fields message, patterns_field
+source = logs-otel-v1*
+| patterns body method=brain
+| fields body, patterns_field
 ```
 
 The brain algorithm identifies that HTTP methods (GET, POST, etc.), URL paths, and status codes are variable while structural elements (brackets, dashes, quotes) are constant, producing cleaner patterns like:
 
 ```
-<*IP*> - <*> [<*>/Sep/<*>:<*>:<*>:<*> <*>] "HEAD /e-business/mindshare HTTP/<*>" 404 <*>
+<*IP*> - <*> [<*>/<*>/<*>:<*>:<*>:<*> <*>] "<*> <*> HTTP/<*>" <*> <*>
 ```
 
 ### Custom regex pattern
@@ -136,9 +136,9 @@ The brain algorithm identifies that HTTP methods (GET, POST, etc.), URL paths, a
 Replace only digits, preserving all other characters:
 
 ```sql
-source = apache
-| patterns message method=simple_pattern new_field='no_numbers' pattern='[0-9]'
-| fields message, no_numbers
+source = logs-otel-v1*
+| patterns body method=simple_pattern new_field='no_numbers' pattern='[0-9]'
+| fields body, no_numbers
 ```
 
 ### Aggregation with numbered tokens
@@ -146,13 +146,13 @@ source = apache
 Enable numbered tokens to see exactly which parts of the pattern are variable:
 
 ```sql
-source = apache
-| patterns message method=simple_pattern mode=aggregation show_numbered_token=true
+source = logs-otel-v1*
+| patterns body method=simple_pattern mode=aggregation show_numbered_token=true
 | fields patterns_field, pattern_count, tokens
 | head 1
 ```
 
-The output includes a `tokens` map showing what each `<tokenN>` placeholder matched, e.g. `{'<token1>': ['210'], '<token2>': ['204'], ...}`.
+The output includes a `tokens` map showing what each `<tokenN>` placeholder matched, e.g. `{'<token1>': ['200'], '<token2>': ['404'], ...}`.
 
 ## Extended examples
 

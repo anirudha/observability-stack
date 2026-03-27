@@ -28,7 +28,7 @@ fields [+|-] <field-list>
 ## Usage notes
 
 - **Reduces data transfer**: Selecting only the fields you need reduces the amount of data returned from OpenSearch, which can significantly improve query performance for wide indices with many fields.
-- **Wildcard patterns**: Use `*` to match field names by prefix (`account*`), suffix (`*name`), or substring (`*attr*`). Wildcards are expanded against the index schema.
+- **Wildcard patterns**: Use `*` to match field names by prefix (`severity*`), suffix (`*Id`), or substring (`*attr*`). Wildcards are expanded against the index schema.
 - **Field order**: The order of fields in the output matches the order you specify in the `fields` command.
 - **Automatic deduplication**: If a field is both explicitly listed and matched by a wildcard pattern, it appears only once in the output.
 - **Backtick-quoted field names**: OTel fields with dots in their names (e.g., `resource.attributes.service.name`) must be enclosed in backticks (`` ` ``) to prevent them from being interpreted as nested field access. For example: `` `resource.attributes.service.name` ``.
@@ -40,11 +40,11 @@ fields [+|-] <field-list>
 
 ### Select specific fields
 
-Return only three fields from the results:
+Return only the timestamp, log body, and severity from log results:
 
 ```sql
-source=accounts
-| fields account_number, firstname, lastname
+source=logs-otel-v1*
+| fields time, body, severityText
 ```
 
 ### Exclude a field
@@ -52,9 +52,9 @@ source=accounts
 Start with a set of fields, then remove one:
 
 ```sql
-source=accounts
-| fields account_number, firstname, lastname
-| fields - account_number
+source=logs-otel-v1*
+| fields time, body, severityText, traceId
+| fields - traceId
 ```
 
 ### Space-delimited syntax
@@ -62,26 +62,26 @@ source=accounts
 Fields can be separated by spaces instead of commas:
 
 ```sql
-source=accounts
-| fields firstname lastname age
+source=logs-otel-v1*
+| fields time body severityText
 ```
 
 ### Prefix wildcard
 
-Select all fields whose names start with `account`:
+Select all fields whose names start with `severity`:
 
 ```sql
-source=accounts
-| fields account*
+source=logs-otel-v1*
+| fields severity*
 ```
 
 ### Suffix wildcard
 
-Select all fields whose names end with `name`:
+Select all fields whose names end with `Id`:
 
 ```sql
-source=accounts
-| fields *name
+source=logs-otel-v1*
+| fields *Id
 ```
 
 ## Extended examples
