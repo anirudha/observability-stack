@@ -66,7 +66,7 @@ source = logs-otel-v1*
 | 192.168.1.10 - - [27/Mar/2026:10:15:33 +0000] "POST /api/v1/invoke HTTP/1.1" 404 567 | 192.168.1.10 | 404 |
 | 172.16.0.42 - - [27/Mar/2026:10:15:34 +0000] "GET /health HTTP/1.1" 500 89 | 172.16.0.42 | 500 |
 
-<a href="https://observability.playground.opensearch.org/w/19jD-R/app/explore/logs/#/?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_q=(dataset:(id:d1f424b0-2655-11f1-8baa-d5b726b04d73,timeFieldName:time,title:'logs-otel-v1*',type:INDEX_PATTERN),language:PPL,query:'source%20%3D%20logs-otel-v1*%20%7C%20grok%20body%20%27%25%7BIP%3Aclientip%7D%20.*%20%25%7BPOSINT%3Astatus%7D%27%20%7C%20fields%20body%2C%20clientip%2C%20status')&_a=(legacy:(columns:!(body,severityText,resource.attributes.service.name),interval:auto,isDirty:!f,sort:!()),tab:(logs:(),patterns:(usingRegexPatterns:!f)),ui:(activeTabId:logs,showHistogram:!t))" target="_blank" rel="noopener">Try in playground &rarr;</a>
+<a href="https://observability.playground.opensearch.org/w/19jD-R/app/explore/logs/#/?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-6h,to:now))&_q=(dataset:(id:d1f424b0-2655-11f1-8baa-d5b726b04d73,timeFieldName:time,title:'logs-otel-v1*',type:INDEX_PATTERN),language:PPL,query:'source%20%3D%20logs-otel-v1*%20%7C%20grok%20body%20!%27%25%7BIP%3Aclientip%7D%20.*%20%25%7BPOSINT%3Astatus%7D!%27%20%7C%20fields%20body%2C%20clientip%2C%20status')&_a=(legacy:(columns:!(body,severityText,resource.attributes.service.name),interval:auto,isDirty:!f,sort:!()),tab:(logs:(),patterns:(usingRegexPatterns:!f)),ui:(activeTabId:logs,showHistogram:!t))" target="_blank" rel="noopener">Try in playground &rarr;</a>
 
 ### Override an existing field
 
@@ -146,7 +146,7 @@ source = logs-otel-v1*
 
 This extracts the first word from each log body as the log level, then counts occurrences per level.
 
-<a href="https://observability.playground.opensearch.org/w/19jD-R/app/explore/logs/#/?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_q=(dataset:(id:d1f424b0-2655-11f1-8baa-d5b726b04d73,timeFieldName:time,title:'logs-otel-v1*',type:INDEX_PATTERN),language:PPL,query:'source%20%3D%20logs-otel-v1*%20%7C%20grok%20body%20%27%25%7BWORD%3Alevel%7D%20%25%7BGREEDYDATA%3Adetail%7D%27%20%7C%20where%20isnotnull(level)%20%7C%20stats%20count()%20as%20occurrences%20by%20level%20%7C%20sort%20-%20occurrences')&_a=(legacy:(columns:!(body,severityText,resource.attributes.service.name),interval:auto,isDirty:!f,sort:!()),tab:(logs:(),patterns:(usingRegexPatterns:!f)),ui:(activeTabId:logs,showHistogram:!t))" target="_blank" rel="noopener">Try in playground &rarr;</a>
+<a href="https://observability.playground.opensearch.org/w/19jD-R/app/explore/logs/#/?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-6h,to:now))&_q=(dataset:(id:d1f424b0-2655-11f1-8baa-d5b726b04d73,timeFieldName:time,title:'logs-otel-v1*',type:INDEX_PATTERN),language:PPL,query:'source%20%3D%20logs-otel-v1*%20%7C%20grok%20body%20!%27%25%7BWORD%3Alevel%7D%20%25%7BGREEDYDATA%3Adetail%7D!%27%20%7C%20where%20isnotnull(level)%20%7C%20stats%20count()%20as%20occurrences%20by%20level%20%7C%20sort%20-%20occurrences')&_a=(legacy:(columns:!(body,severityText,resource.attributes.service.name),interval:auto,isDirty:!f,sort:!()),tab:(logs:(),patterns:(usingRegexPatterns:!f)),ui:(activeTabId:logs,showHistogram:!t))" target="_blank" rel="noopener">Try in playground &rarr;</a>
 
 ### Extract IP addresses and paths from OTel HTTP logs
 
