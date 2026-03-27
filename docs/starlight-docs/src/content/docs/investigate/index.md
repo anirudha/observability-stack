@@ -55,7 +55,13 @@ source = otel-v1-apm-span-*
 | head 10
 ```
 
-For the full PPL command reference, see the [PPL documentation](https://github.com/opensearch-project/sql/blob/main/docs/user/ppl/index.md). For hands-on examples using OTEL data, see [Discover Logs](/docs/investigate/discover-logs/) and [Discover Traces](/docs/investigate/discover-traces/).
+For the full PPL reference, see:
+- **[PPL Language Overview](/docs/ppl/)** — Why PPL and how it fits into the stack
+- **[Command Reference](/docs/ppl/commands/)** — Syntax and examples for all 50+ commands
+- **[Function Reference](/docs/ppl/functions/)** — 200+ built-in functions
+- **[Observability Examples](/docs/ppl/examples/)** — Real-world queries with live playground links
+
+For hands-on exploration in the Discover UI, see [Discover Logs](/docs/investigate/discover-logs/) and [Discover Traces](/docs/investigate/discover-traces/).
 
 ### PromQL
 

@@ -32,10 +32,26 @@ OpenSearch Observability Stack is an **open-source, OpenTelemetry-native observa
 The stack optionally ships with [example services](https://github.com/opensearch-project/observability-stack/tree/main/examples) — a multi-agent travel planner, weather agent, and events agent that generate agent traces automatically. You can also enable the [OpenTelemetry Demo](https://opentelemetry.io/docs/demo/architecture/), a full microservices e-commerce app for realistic telemetry. Install, open Dashboards, and start exploring — no instrumentation needed.
 </Aside>
 
+## Query language: PPL
+
+The Observability Stack is powered by **Piped Processing Language (PPL)** — a pipe-based, human-readable query language purpose-built for observability. PPL is the native language for querying logs and traces, giving you a single, consistent syntax across signal types.
+
+```sql
+source = logs-otel-v1*
+| where severityNumber >= 17
+| stats count() as errors by `resource.attributes.service.name`
+| sort - errors
+```
+
+With **50+ commands** and **200+ built-in functions**, PPL covers everything from simple filtering to machine learning anomaly detection — all in a pipeline you can read top to bottom.
+
+<LinkCard title="Learn PPL" href="/docs/ppl/" description="Overview, command reference, function reference, and real-world observability examples with live playground links." />
+
 ## Why Observability Stack?
 
 - **Open source**: Fully open source, no vendor lock-in, self-host everything
 - **OpenTelemetry-native**: All data ingestion uses OTel protocols and [semantic conventions](https://opentelemetry.io/docs/specs/semconv/)
+- **PPL-native**: Pipe-based query language across logs and traces — no query DSL, no steep learning curve
 - **GenAI-first**: Purpose-built views for AI agent tracing using standard `gen_ai.*` attributes
 - **Local-first**: Runs entirely on your machine via Docker Compose — no cloud account required
 - **Production path**: Same components (OpenSearch, Prometheus, OTel Collector) scale to production

@@ -105,6 +105,91 @@ export default defineConfig({
 					],
 				},
 				{
+					label: 'PPL — Query Language',
+					collapsed: true,
+					items: [
+						{ label: 'Overview', link: '/ppl/' },
+						{ label: 'Command Reference', link: '/ppl/commands/' },
+						{
+							label: 'Search & Filter',
+							collapsed: true,
+							items: [
+								{ label: 'search', link: '/ppl/commands/search/' },
+								{ label: 'where', link: '/ppl/commands/where/' },
+							],
+						},
+						{
+							label: 'Fields & Transformation',
+							collapsed: true,
+							items: [
+								{ label: 'fields', link: '/ppl/commands/fields/' },
+								{ label: 'eval', link: '/ppl/commands/eval/' },
+								{ label: 'rename', link: '/ppl/commands/rename/' },
+								{ label: 'fillnull', link: '/ppl/commands/fillnull/' },
+								{ label: 'expand', link: '/ppl/commands/expand/' },
+								{ label: 'flatten', link: '/ppl/commands/flatten/' },
+							],
+						},
+						{
+							label: 'Aggregation & Statistics',
+							collapsed: true,
+							items: [
+								{ label: 'stats', link: '/ppl/commands/stats/' },
+								{ label: 'eventstats', link: '/ppl/commands/eventstats/' },
+								{ label: 'streamstats', link: '/ppl/commands/streamstats/' },
+								{ label: 'timechart', link: '/ppl/commands/timechart/' },
+								{ label: 'trendline', link: '/ppl/commands/trendline/' },
+							],
+						},
+						{
+							label: 'Sorting & Limiting',
+							collapsed: true,
+							items: [
+								{ label: 'sort', link: '/ppl/commands/sort/' },
+								{ label: 'head', link: '/ppl/commands/head/' },
+								{ label: 'dedup', link: '/ppl/commands/dedup/' },
+								{ label: 'top', link: '/ppl/commands/top/' },
+								{ label: 'rare', link: '/ppl/commands/rare/' },
+							],
+						},
+						{
+							label: 'Text Extraction',
+							collapsed: true,
+							items: [
+								{ label: 'parse', link: '/ppl/commands/parse/' },
+								{ label: 'grok', link: '/ppl/commands/grok/' },
+								{ label: 'rex', link: '/ppl/commands/rex/' },
+								{ label: 'patterns', link: '/ppl/commands/patterns/' },
+								{ label: 'spath', link: '/ppl/commands/spath/' },
+							],
+						},
+						{
+							label: 'Data Combination',
+							collapsed: true,
+							items: [
+								{ label: 'join', link: '/ppl/commands/join/' },
+								{ label: 'lookup', link: '/ppl/commands/lookup/' },
+							],
+						},
+						{
+							label: 'Machine Learning',
+							collapsed: true,
+							items: [
+								{ label: 'ml', link: '/ppl/commands/ml/' },
+							],
+						},
+						{
+							label: 'Metadata',
+							collapsed: true,
+							items: [
+								{ label: 'describe', link: '/ppl/commands/describe/' },
+							],
+						},
+						{ label: 'Function Reference', link: '/ppl/functions/' },
+						{ label: 'Observability Examples', link: '/ppl/examples/' },
+					],
+				},
+				{
 					label: 'Discover',
 					collapsed: true,
 					autogenerate: { directory: 'investigate' },
@@ -132,6 +217,8 @@ export default defineConfig({
 					label: 'Reference',
 					collapsed: true,
 					items: [
+						{ label: 'PPL Commands', link: '/ppl/commands/' },
+						{ label: 'PPL Functions', link: '/ppl/functions/' },
 						{ label: 'Python SDK', link: '/send-data/ai-agents/python/' },
 						{ label: 'TypeScript SDK', link: '/send-data/ai-agents/typescript/' },
 						{ label: 'MCP Server', link: '/mcp/' },

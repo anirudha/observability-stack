@@ -1,0 +1,158 @@
+---
+title: "stats"
+description: "Calculate aggregate statistics over search results — counts, averages, percentiles, and more with grouping."
+---
+
+## Description
+
+The `stats` command is the primary aggregation command in PPL. It calculates statistics such as `count`, `sum`, `avg`, `min`, `max`, `percentile`, and more across your search results. Use it whenever you need to summarize data -- whether that means counting error logs per service, computing average response latency, tracking token usage over time, or building the numbers behind a dashboard panel.
+
+Results can be grouped using the `by` clause with one or more fields, and time-series bucketing is supported through the `span()` expression. When no `by` clause is provided, `stats` returns a single row representing the aggregation over the entire result set.
+
+`stats` is the workhorse command for dashboards, alerting thresholds, and investigative queries.
+
+---
+
+## Syntax
+
+```sql
+stats [bucket_nullable=<bool>] <aggregation> [, <aggregation>]... [by <span-expression>, <field-list>]
+```
+
+---
+
+## Arguments
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `<aggregation>` | Yes | One or more aggregation functions (see table below). Multiple aggregations are comma-separated. Use `as` to alias the output field name. |
+| `by <field-list>` | No | Groups results by one or more fields. Without a `by` clause, stats returns one row aggregating all results. |
+| `by <span-expression>` | No | Splits a field into time or numeric buckets. Syntax: `span(field, interval)`. At most one span expression per query. The span is always treated as the first grouping key regardless of position. |
+| `bucket_nullable` | No | When `false`, excludes records where the group-by field is null, improving performance. Default depends on `plugins.ppl.syntax.legacy.preferred`. |
+
+### Supported aggregation functions
+
+| Function | Description |
+|----------|-------------|
+| `count()` | Count of all events (including nulls). Alias: `c()`. |
+| `count(<field>)` | Count of events where field is not null. |
+| `sum(<field>)` | Sum of numeric values. |
+| `avg(<field>)` | Average of numeric values. |
+| `max(<field>)` | Maximum value. |
+| `min(<field>)` | Minimum value. |
+| `var_samp(<field>)` | Sample variance. |
+| `var_pop(<field>)` | Population variance. |
+| `stddev_samp(<field>)` | Sample standard deviation. |
+| `stddev_pop(<field>)` | Population standard deviation. |
+| `distinct_count(<field>)` | Approximate count of distinct values. Alias: `dc()`. |
+| `percentile(<field>, <percent>)` | Percentile value (e.g. `percentile(duration, 95)`). Alias: `percentile_approx()`. |
+| `median(<field>)` | 50th percentile (shorthand for `percentile(field, 50)`). |
+| `first(<field>)` | First non-null value encountered. |
+| `last(<field>)` | Last non-null value encountered. |
+| `list(<field>)` | Collects all values into an array, preserving duplicates and order. |
+| `values(<field>)` | Collects unique values into a sorted array (duplicates removed). |
+| `take(<field>, <n>)` | Returns a list of up to `n` original values. |
+| `earliest(<field>)` | Earliest value by timestamp. |
+| `latest(<field>)` | Latest value by timestamp. |
+
+---
+
+## Usage notes
+
+- **Multiple aggregations in a single `stats`**: Separate them with commas. Each produces its own output column.
+  ```sql
+  | stats count() as total, avg(duration) as avg_dur, max(duration) as max_dur by service
+  ```
+
+- **Naming output fields with `as`**: Without an alias, the column name is the function call itself (e.g. `avg(age)`). Always alias for readability.
+
+- **`count()` vs `count(field)`**: `count()` counts all events including those where a field is null. `count(field)` only counts events where `field` is non-null.
+
+- **Span intervals -- numeric**: `span(age, 10)` creates buckets of width 10 (20, 30, 40, ...).
+
+- **Span intervals -- time**: `span(timestamp, 1h)` creates hourly buckets. Valid time units: `ms` (millisecond), `s` (second), `m` (minute), `h` (hour), `d` (day), `w` (week), `M` (month), `q` (quarter), `y` (year).
+
+- **Span is always the first grouping key**: Even if you write `by gender, span(age, 5)`, the span is promoted to the first position in the output.
+
+- **Null handling in group-by**: By default, null values in group-by fields produce a null bucket. Set `bucket_nullable=false` to exclude null groups for cleaner output and faster performance.
+
+- **Eval expressions inside aggregations**: You can embed expressions directly, e.g. `sum(price * quantity)`.
+
+- **High-cardinality fields**: Aggregations over fields with many distinct values (like URLs or trace IDs) use approximate bucket counts. Results may be approximate for the long tail.
+
+- **Ascending doc_count sort caveat**: When sorting by count in ascending order on high-cardinality fields, globally rare terms may be missed due to shard-level approximation.
+
+---
+
+## Basic examples
+
+### Count all events
+
+```sql
+source = accounts
+| stats count()
+```
+
+### Average by group
+
+```sql
+source = accounts
+| stats avg(age) by gender
+```
+
+### Multiple aggregations
+
+```sql
+source = accounts
+| stats avg(age) as avg_age, sum(age) as total_age, count() as cnt by gender
+```
+
+### Time bucketing with span
+
+```sql
+source = accounts
+| stats count(age) by span(age, 10) as age_span
+```
+
+### Percentile calculation
+
+```sql
+source = accounts
+| stats percentile(age, 90) as p90 by gender
+```
+
+---
+
+## Extended examples
+
+### OTel: Error rate by service
+
+Calculate the error rate per service by comparing error-severity log counts to total log counts.
+
+```sql
+| stats count() as total,
+        sum(case(severityText = 'ERROR' or severityText = 'FATAL', 1 else 0)) as errors
+    by `resource.attributes.service.name`
+| eval error_rate = errors * 100.0 / total
+```
+
+<a href="https://observability.playground.opensearch.org/w/19jD-R/app/explore/logs/#/?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_q=(dataset:(id:d1f424b0-2655-11f1-8baa-d5b726b04d73,timeFieldName:time,title:'logs-otel-v1*',type:INDEX_PATTERN),language:PPL,query:'%7C%20stats%20count()%20as%20total%2C%20sum(case(severityText%20%3D%20%27ERROR%27%20or%20severityText%20%3D%20%27FATAL%27%2C%201%20else%200))%20as%20errors%20by%20%60resource.attributes.service.name%60%20%7C%20eval%20error_rate%20%3D%20errors%20*%20100.0%20%2F%20total')&_a=(legacy:(columns:!(body,severityText,resource.attributes.service.name),interval:auto,isDirty:!f,sort:!()),tab:(logs:(),patterns:(usingRegexPatterns:!f)),ui:(activeTabId:logs,showHistogram:!t))" target="_blank" rel="noopener">Try in playground &rarr;</a>
+
+### OTel: Log volume over time
+
+Track how many log events arrive per 5-minute window, broken down by severity.
+
+```sql
+| stats count() as log_count by span(time, 5m) as time_bucket, severityText
+```
+
+<a href="https://observability.playground.opensearch.org/w/19jD-R/app/explore/logs/#/?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_q=(dataset:(id:d1f424b0-2655-11f1-8baa-d5b726b04d73,timeFieldName:time,title:'logs-otel-v1*',type:INDEX_PATTERN),language:PPL,query:'%7C%20stats%20count()%20as%20log_count%20by%20span(time%2C%205m)%20as%20time_bucket%2C%20severityText')&_a=(legacy:(columns:!(body,severityText,resource.attributes.service.name),interval:auto,isDirty:!f,sort:!()),tab:(logs:(),patterns:(usingRegexPatterns:!f)),ui:(activeTabId:logs,showHistogram:!t))" target="_blank" rel="noopener">Try in playground &rarr;</a>
+
+---
+
+## See also
+
+- [eval](/docs/ppl/commands/eval/) -- create computed fields from aggregation results
+- [sort](/docs/ppl/commands/sort/) -- order aggregated results
+- [where](/docs/ppl/commands/) -- filter before aggregating
+- [head](/docs/ppl/commands/) -- limit output rows
