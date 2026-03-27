@@ -222,7 +222,7 @@ export async function runCreate(session) {
 
   // Offer to create demo EKS services
   try {
-    await promptDemoAfterCreate(session);
+    await promptDemoAfterCreate(session, cfg.pipelineName);
   } catch (err) {
     // Demo is optional — don't fail the create flow
     console.error(`  ${theme.muted(`Demo setup skipped: ${err.message}`)}`);

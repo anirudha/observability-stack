@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-amp": "^3.750.0",
+    "@aws-sdk/client-eks": "^3.1019.0",
     "@aws-sdk/client-iam": "^3.750.0",
     "@aws-sdk/client-opensearch": "^3.750.0",
     "@aws-sdk/client-opensearchserverless": "^3.1018.0",

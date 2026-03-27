@@ -10,6 +10,7 @@ import {
   printInfo,
   createSpinner,
 } from './ui.mjs';
+import { tagResource } from './aws.mjs';
 import chalk from 'chalk';
 
 const HELM_CHART_REPO = 'https://github.com/kylehounslow/observability-stack.git';
@@ -17,6 +18,10 @@ const HELM_CHART_BRANCH = 'feat/helm-charts';
 const HELM_CHART_PATH = 'charts/observability-stack';
 const HELM_RELEASE_NAME = 'obs-stack';
 const HELM_NAMESPACE = 'observability';
+
+const OTEL_DEMO_REPO = 'https://open-telemetry.github.io/opentelemetry-helm-charts';
+const OTEL_DEMO_RELEASE_NAME = 'otel-demo';
+const OTEL_DEMO_NAMESPACE = 'otel-demo';
 
 // ── Prerequisites ───────────────────────────────────────────────────────────
 
@@ -108,7 +113,7 @@ function runCommand(cmd, args, { spinner, prefix = '' } = {}) {
 }
 
 export async function createEksCluster(cfg) {
-  const { clusterName, region, nodeCount, instanceType } = cfg;
+  const { clusterName, region, nodeCount, instanceType, stackName, accountId } = cfg;
 
   printStep(`Creating EKS cluster '${clusterName}'...`);
   console.error();
@@ -151,6 +156,13 @@ export async function createEksCluster(cfg) {
     console.error(`  ${chalk.dim(err.message)}`);
     console.error();
     throw new Error('Failed to create EKS cluster');
+  }
+
+  // Tag the EKS cluster for stack discovery
+  if (stackName && accountId) {
+    const clusterArn = `arn:aws:eks:${region}:${accountId}:cluster/${clusterName}`;
+    await tagResource(region, clusterArn, stackName);
+    printSuccess('Cluster tagged');
   }
 
   // Update kubeconfig
@@ -252,4 +264,83 @@ export async function installHelmChart(cfg) {
       rmSync(tmpDir, { recursive: true, force: true });
     } catch { /* best effort cleanup */ }
   }
+}
+
+// ── OpenTelemetry Demo ────────────────────────────────────────────────────
+
+export async function installOtelDemo(cfg) {
+  printStep('Installing OpenTelemetry Demo...');
+  console.error();
+
+  // Add the Helm repo
+  const repoSpinner = createSpinner('Adding OpenTelemetry Helm repo...');
+  repoSpinner.start();
+
+  try {
+    await runCommand('helm', [
+      'repo', 'add', 'open-telemetry', OTEL_DEMO_REPO,
+    ], { spinner: repoSpinner });
+    await runCommand('helm', ['repo', 'update'], { spinner: repoSpinner });
+    repoSpinner.succeed('OpenTelemetry Helm repo added');
+  } catch (err) {
+    // Repo may already exist — try update anyway
+    try {
+      await runCommand('helm', ['repo', 'update'], { spinner: repoSpinner });
+      repoSpinner.succeed('OpenTelemetry Helm repo updated');
+    } catch (updateErr) {
+      repoSpinner.fail('Failed to add Helm repo');
+      console.error(`  ${chalk.dim(updateErr.message)}`);
+      throw new Error('Failed to add OpenTelemetry Helm repo');
+    }
+  }
+
+  // Install the OpenTelemetry Demo chart
+  const installSpinner = createSpinner('Installing OpenTelemetry Demo (this may take a few minutes)...');
+  installSpinner.start();
+
+  const helmArgs = [
+    'install', OTEL_DEMO_RELEASE_NAME, 'open-telemetry/opentelemetry-demo',
+    '--namespace', OTEL_DEMO_NAMESPACE,
+    '--create-namespace',
+    '--wait',
+    '--timeout', '10m',
+    // Disable the demo's built-in observability backends — we use our own stack
+    '--set', 'opensearch.enabled=false',
+    '--set', 'grafana.enabled=false',
+    '--set', 'prometheus.enabled=false',
+    '--set', 'jaeger.enabled=false',
+  ];
+
+  // Point the demo's collector at the observability stack's collector
+  if (cfg.otlpEndpoint) {
+    helmArgs.push(
+      '--set', `opentelemetry-collector.config.exporters.otlp/osi.endpoint=${cfg.otlpEndpoint}`,
+    );
+  } else {
+    // Default: send to the obs-stack collector in the observability namespace
+    helmArgs.push(
+      '--set', `default.env[0].name=OTEL_EXPORTER_OTLP_ENDPOINT`,
+      '--set', `default.env[0].value=http://${HELM_RELEASE_NAME}-opentelemetry-collector.${HELM_NAMESPACE}:4317`,
+    );
+  }
+
+  try {
+    await runCommand('helm', helmArgs, { spinner: installSpinner });
+    installSpinner.succeed('OpenTelemetry Demo installed');
+  } catch (err) {
+    if (/already exists/i.test(err.message) || /cannot re-use/i.test(err.message)) {
+      installSpinner.succeed(`Release '${OTEL_DEMO_RELEASE_NAME}' already installed`);
+      return;
+    }
+    installSpinner.fail('Failed to install OpenTelemetry Demo');
+    console.error(`  ${chalk.dim(err.message)}`);
+    throw new Error('Failed to install OpenTelemetry Demo');
+  }
+
+  console.error();
+  printSuccess('OpenTelemetry Demo deployed');
+  printInfo(`Namespace: ${OTEL_DEMO_NAMESPACE}`);
+  printInfo(`Release: ${OTEL_DEMO_RELEASE_NAME}`);
+  printInfo(`Check status: kubectl get pods -n ${OTEL_DEMO_NAMESPACE}`);
+  printInfo(`Frontend: kubectl port-forward svc/${OTEL_DEMO_RELEASE_NAME}-frontend-proxy 8080:8080 -n ${OTEL_DEMO_NAMESPACE}`);
 }

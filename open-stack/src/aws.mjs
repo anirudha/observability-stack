@@ -40,6 +40,10 @@ import {
   GetPipelineCommand,
 } from '@aws-sdk/client-osis';
 import {
+  EKSClient,
+  DescribeClusterCommand,
+} from '@aws-sdk/client-eks';
+import {
   ResourceGroupsTaggingAPIClient,
   GetResourcesCommand,
   TagResourcesCommand,
@@ -1111,13 +1115,23 @@ export async function listPipelines(region) {
 }
 
 
+/**
+ * Get the OTLP ingest endpoint URL for an OSI pipeline.
+ */
+export async function getPipelineEndpoint(region, pipelineName) {
+  const client = new OSISClient({ region });
+  const resp = await client.send(new GetPipelineCommand({ PipelineName: pipelineName }));
+  const urls = resp.Pipeline?.IngestEndpointUrls;
+  return urls?.length ? urls[0] : null;
+}
+
 // ── Stack discovery (tag-based) ──────────────────────────────────────────────
 
 /**
  * Tag a resource after creation using the Resource Groups Tagging API.
  * Best-effort — failures are silently ignored.
  */
-async function tagResource(region, arn, stackName) {
+export async function tagResource(region, arn, stackName) {
   try {
     const client = new ResourceGroupsTaggingAPIClient({ region });
     await client.send(new TagResourcesCommand({
@@ -1207,6 +1221,7 @@ function arnToType(arn) {
   if (/^arn:aws:aps:.*:workspace\//.test(arn)) return 'APS Workspace';
   if (/^arn:aws:opensearch:.*:datasource\//.test(arn)) return 'DQ Data Source';
   if (/^arn:aws:opensearch:.*:application\//.test(arn)) return 'OpenSearch Application';
+  if (/^arn:aws:eks:.*:cluster\//.test(arn)) return 'EKS Cluster';
   return 'Resource';
 }
 
@@ -1369,6 +1384,20 @@ export async function describeResource(region, resource) {
       }
       if (resp.createdAt) entries.push(['Created', resp.createdAt.toISOString()]);
       if (resp.lastUpdatedAt) entries.push(['Last Updated', resp.lastUpdatedAt.toISOString()]);
+    } else if (type === 'EKS Cluster') {
+      const client = new EKSClient({ region });
+      const resp = await client.send(new DescribeClusterCommand({ name }));
+      const c = resp.cluster || {};
+      if (c.status) entries.push(['Status', c.status]);
+      if (c.version) entries.push(['Kubernetes Version', c.version]);
+      if (c.platformVersion) entries.push(['Platform Version', c.platformVersion]);
+      if (c.endpoint) entries.push(['API Endpoint', c.endpoint]);
+      if (c.roleArn) entries.push(['Role ARN', c.roleArn]);
+      if (c.resourcesVpcConfig) {
+        const vpc = c.resourcesVpcConfig;
+        if (vpc.vpcId) entries.push(['VPC', vpc.vpcId]);
+      }
+      if (c.createdAt) entries.push(['Created', c.createdAt.toISOString()]);
     }
   } catch (err) {
     entries.push(['Error', err.message]);
