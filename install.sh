@@ -13,6 +13,8 @@ REPO_URL="https://github.com/opensearch-project/observability-stack.git"
 TEMP_DIR=$(mktemp -d)
 SIMULATE_MODE=false
 SKIP_PULL=false
+DEPLOYMENT_TARGET="local"
+AWS_ARGS=()  # Extra args to forward to open-stack CLI
 OPENSEARCH_PROTOCOL=""
 OPENSEARCH_HOST=""
 OPENSEARCH_PORT=""
@@ -116,12 +118,28 @@ Observability Stack Installer
 Usage: install.sh [OPTIONS]
 
 Options:
-  --simulate   Preview the installer output without actually installing
-  --skip-pull  Skip building and pulling container images (uses cached images)
-  --help       Show this help message
+  --deployment-target <target>  Deployment target: "local" (default) or "aws"
+  --simulate                    Preview the installer output without actually installing
+  --skip-pull                   Skip building and pulling container images (uses cached images)
+  --help                        Show this help message
+
+AWS options (when --deployment-target=aws):
+  --pipeline-name <name>        Pipeline name and resource prefix
+  --region <region>             AWS region (e.g. us-east-1)
+  --skip-demo                   Skip EC2 demo workloads
+  Any additional open-stack CLI flags are forwarded automatically.
 
 Examples:
+  # Local Docker Compose install (default)
   curl -fsSL https://raw.githubusercontent.com/.../install.sh | bash
+
+  # AWS managed stack install
+  curl -fsSL https://raw.githubusercontent.com/.../install.sh | bash -s -- --deployment-target=aws
+
+  # AWS with specific pipeline name and region
+  curl -fsSL https://raw.githubusercontent.com/.../install.sh | bash -s -- \\
+    --deployment-target=aws --pipeline-name my-stack --region us-east-1
+
   ./install.sh --simulate
   ./install.sh --skip-pull
 EOF
@@ -140,6 +158,22 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-pull)
             SKIP_PULL=true
+            shift
+            ;;
+        --deployment-target=*)
+            DEPLOYMENT_TARGET="${1#*=}"
+            shift
+            ;;
+        --deployment-target)
+            DEPLOYMENT_TARGET="$2"
+            shift 2
+            ;;
+        --pipeline-name|--region|--opensearch-endpoint|--os-domain-name|--os-instance-type|--os-instance-count|--os-volume-size|--os-engine-version|--iam-role-arn|--iam-role-name|--prometheus-url|--aps-workspace-alias|--dashboards-url|--min-ocu|--max-ocu|--service-map-window|-o|--output)
+            AWS_ARGS+=("$1" "$2")
+            shift 2
+            ;;
+        --managed|--simple|--advanced|--dry-run|--skip-demo)
+            AWS_ARGS+=("$1")
             shift
             ;;
         *)
@@ -917,13 +951,118 @@ run_simulated_installer() {
     print_summary
 }
 
+# Run AWS managed stack installer via open-stack CLI
+run_aws_installer() {
+    print_step "Deploying to AWS managed services..."
+    echo ""
+
+    # Check Node.js
+    if ! command_exists node; then
+        print_error "Node.js is required for AWS deployment but not installed"
+        print_info "Install Node.js 18+: https://nodejs.org/"
+        exit 1
+    fi
+
+    local node_version
+    node_version=$(node -v | sed 's/v//' | cut -d. -f1)
+    if [ "$node_version" -lt 18 ]; then
+        print_error "Node.js 18+ required (found v$(node -v))"
+        exit 1
+    fi
+    print_success "Node.js $(node -v)"
+
+    # Check AWS credentials
+    if ! command_exists aws; then
+        print_warning "AWS CLI not found — the open-stack CLI will verify credentials directly"
+    else
+        if aws sts get-caller-identity >/dev/null 2>&1; then
+            local identity
+            identity=$(aws sts get-caller-identity --query 'Arn' --output text 2>/dev/null)
+            print_success "AWS credentials: $identity"
+        else
+            print_error "AWS credentials not configured"
+            print_info "Run: aws configure"
+            print_info "Docs: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-quickstart.html"
+            exit 1
+        fi
+    fi
+
+    echo ""
+
+    # Clone repo if not already inside one
+    local open_stack_dir
+    if [ -f "open-stack/package.json" ]; then
+        open_stack_dir="open-stack"
+        print_success "Using existing open-stack directory"
+    else
+        CURRENT_STEP="Cloning repository"
+        print_step "Cloning Observability Stack repository..."
+
+        local clone_dir="${INSTALL_DIR:-observability-stack}"
+        if [[ "$clone_dir" != /* ]]; then
+            clone_dir="$(pwd)/$clone_dir"
+        fi
+
+        if [ -d "$clone_dir/open-stack" ]; then
+            print_success "Repository already exists at $clone_dir"
+        else
+            if git clone --depth 1 "$REPO_URL" "$clone_dir" >/dev/null 2>&1; then
+                print_success "Repository cloned to $clone_dir"
+            else
+                print_error "Failed to clone repository"
+                exit 1
+            fi
+        fi
+        open_stack_dir="$clone_dir/open-stack"
+    fi
+
+    # Install npm dependencies
+    CURRENT_STEP="Installing dependencies"
+    print_step "Installing open-stack dependencies..."
+    if (cd "$open_stack_dir" && npm install --no-fund --no-audit) >/dev/null 2>&1; then
+        print_success "Dependencies installed"
+    else
+        print_error "npm install failed"
+        exit 1
+    fi
+
+    echo ""
+
+    # Launch open-stack CLI
+    CURRENT_STEP="Running open-stack CLI"
+    if [ ${#AWS_ARGS[@]} -eq 0 ]; then
+        # No CLI args — launch interactive mode
+        print_step "Launching interactive AWS installer..."
+        echo ""
+        (cd "$open_stack_dir" && node bin/open-stack.mjs)
+    else
+        # Forward CLI args — add --managed if not already present
+        local has_managed=false
+        for arg in "${AWS_ARGS[@]}"; do
+            if [ "$arg" = "--managed" ]; then
+                has_managed=true
+                break
+            fi
+        done
+        if [ "$has_managed" = false ]; then
+            AWS_ARGS=("--managed" "${AWS_ARGS[@]}")
+        fi
+
+        print_step "Running: open-stack ${AWS_ARGS[*]}"
+        echo ""
+        (cd "$open_stack_dir" && node bin/open-stack.mjs "${AWS_ARGS[@]}")
+    fi
+}
+
 # Main installation flow
 main() {
     print_header
-    
+
     echo -e "${PURPLE}${BOLD}Starting installation...${RESET}\n"
 
-    if [ "$SIMULATE_MODE" = true ]; then
+    if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
+        run_aws_installer
+    elif [ "$SIMULATE_MODE" = true ]; then
         run_simulated_installer
     else
         run_manual_installer
