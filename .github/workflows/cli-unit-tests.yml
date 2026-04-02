@@ -1,0 +1,24 @@
+name: CLI Installer Unit Tests
+
+on:
+  push:
+    paths:
+      - 'aws/cli-installer/**'
+  pull_request:
+    paths:
+      - 'aws/cli-installer/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        working-directory: aws/cli-installer
+        run: npm ci
+      - name: Run unit tests
+        working-directory: aws/cli-installer
+        run: node --test test/unit.test.mjs
